@@ -1,0 +1,10 @@
+frontend/
+node_modules/
+.git/
+.gitignore
+.vercel/
+venv/
+venv_lowram/
+__pycache__/
+*.pyc
+.env

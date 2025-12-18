@@ -1,3 +1,13 @@
+---
+title: Friday Voice Assistant
+emoji: 🤖
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # FRIDAY (Project Alan)
 
 A JARVIS-style real-time voice AI assistant using LiveKit, Gemini, and React.

@@ -1,5 +1,23 @@
-from AppOpener import open as win_open, close as win_close
-from ppadb.client import Client as AdbClient
+import os
+
+# Check for Windows OS
+IS_WINDOWS = os.name == 'nt'
+
+try:
+    if IS_WINDOWS:
+        from AppOpener import open as win_open, close as win_close
+        APP_OPENER_AVAILABLE = True
+    else:
+        APP_OPENER_AVAILABLE = False
+except ImportError:
+    APP_OPENER_AVAILABLE = False
+    
+try:
+    from ppadb.client import Client as AdbClient
+    ADB_AVAILABLE = True
+except ImportError:
+    ADB_AVAILABLE = False
+
 import logging
 import time
 
@@ -8,22 +26,27 @@ logger = logging.getLogger("system-tools")
 class SystemControl:
     def __init__(self):
         # Initialize ADB Client
-        try:
-            self.adb = AdbClient(host="127.0.0.1", port=5037)
-            # Try to connect to first device
-            devices = self.adb.devices()
-            if devices:
-                self.device = devices[0]
-                logger.info(f"Connected to Android Device: {self.device.serial}")
-            else:
-                self.device = None
-                logger.warning("No Android device connected via ADB.")
-        except Exception as e:
-            self.device = None
-            logger.warning(f"ADB Connection failed: {e}")
+        self.device = None
+        if ADB_AVAILABLE:
+            try:
+                self.adb = AdbClient(host="127.0.0.1", port=5037)
+                # Try to connect to first device
+                devices = self.adb.devices()
+                if devices:
+                    self.device = devices[0]
+                    logger.info(f"Connected to Android Device: {self.device.serial}")
+                else:
+                    logger.warning("No Android device connected via ADB.")
+            except Exception as e:
+                logger.warning(f"ADB Connection failed: {e}")
+        else:
+            logger.info("ADB client not available (Cloud Environment)")
 
     def open_windows_app(self, app_name):
         """Opens a Windows application by name."""
+        if not APP_OPENER_AVAILABLE:
+            return "Windows App Control is not available in Cloud Environment."
+            
         try:
             logger.info(f"Opening Windows App: {app_name}")
             win_open(app_name, match_closest=True, output=False)
@@ -34,6 +57,9 @@ class SystemControl:
 
     def close_windows_app(self, app_name):
         """Closes a Windows application by name."""
+        if not APP_OPENER_AVAILABLE:
+            return "Windows App Control is not available in Cloud Environment."
+
         try:
             logger.info(f"Closing Windows App: {app_name}")
             win_close(app_name, match_closest=True, output=False)

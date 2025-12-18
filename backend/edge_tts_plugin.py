@@ -40,7 +40,6 @@ class SynthesizeStream(tts.SynthesizeStream):
         self._sent_text = ""
         
         try:
-        try:
             # Language Detection Logic
             # Check for Tamil Characters
             is_tamil = bool(re.search(r'[\u0B80-\u0BFF]', text))

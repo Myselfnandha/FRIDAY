@@ -58,6 +58,44 @@ export default function App() {
 }
 
 function ConnectScreen({ setConnected, token, setToken, url, setUrl }) {
+  const [backendUrl, setBackendUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleFetchToken = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      // Ensure backend URL has no trailing slash and includes protocol
+      let targetUrl = backendUrl.trim();
+      if (!targetUrl.startsWith('http')) {
+        targetUrl = 'https://' + targetUrl;
+      }
+      targetUrl = targetUrl.replace(/\/$/, "");
+
+      const response = await fetch(`${targetUrl}/api/token`);
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      if (data.token && data.url) {
+        setToken(data.token);
+        setUrl(data.url);
+      } else {
+        throw new Error("Invalid response from server");
+      }
+    } catch (e) {
+      console.error("Failed to fetch token:", e);
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="connect-container">
       <div className="reactor-container" style={{ transform: 'scale(0.8)' }}>
@@ -71,27 +109,58 @@ function ConnectScreen({ setConnected, token, setToken, url, setUrl }) {
       </div>
 
       <h2 style={{ marginTop: '2rem', fontSize: '1.2rem', color: '#fff', fontWeight: 400 }}>
-        Chat live with F.R.I.D.A.Y, your voice AI agent.
+        Chat live with F.R.I.D.A.Y
       </h2>
 
-      {/* Inputs for Dev (Hidden in final look but needed for functionality) */}
-      <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px', width: '300px' }}>
-        <input
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-          placeholder="LiveKit URL"
-          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', padding: '10px', color: 'white', borderRadius: '8px' }}
-        />
-        <input
-          value={token}
-          onChange={e => setToken(e.target.value)}
-          placeholder="Access Token"
-          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', padding: '10px', color: 'white', borderRadius: '8px' }}
-        />
+      <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '15px', width: '320px', zIndex: 10 }}>
+        
+        {/* Backend URL Input */}
+        <div style={{display: 'flex', gap: '5px'}}>
+            <input
+            value={backendUrl}
+            onChange={e => setBackendUrl(e.target.value)}
+            placeholder="Backend URL (e.g. https://myspace.hf.space)"
+            style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '1px solid #333', padding: '10px', color: 'white', borderRadius: '8px' }}
+            />
+            <button 
+                onClick={handleFetchToken} 
+                className="icon-btn" 
+                style={{ borderRadius: '8px', width: 'auto', padding: '0 15px', opacity: loading ? 0.5 : 1 }}
+                disabled={loading}
+            >
+                {loading ? '...' : 'GET'}
+            </button>
+        </div>
+
+        {error && <div style={{color: '#ff4444', fontSize: '0.8rem', textAlign: 'center'}}>{error}</div>}
+
+        <div style={{display: 'flex', gap: '5px'}}>
+            <input
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder="LiveKit URL (wss://...)"
+            style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '1px solid #333', padding: '10px', color: 'white', borderRadius: '8px', fontSize: '0.8rem' }}
+            />
+        </div>
+        
+        <div style={{display: 'flex', gap: '5px'}}>
+            <input
+            value={token}
+            onChange={e => setToken(e.target.value)}
+            placeholder="Access Token (ey...)"
+            style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '1px solid #333', padding: '10px', color: 'white', borderRadius: '8px', fontSize: '0.8rem' }}
+            />
+        </div>
+
       </div>
 
-      <button className="connect-btn" onClick={() => setConnected(true)}>
-        TALK TO F.R.I.D.A.Y
+      <button 
+        className="connect-btn" 
+        onClick={() => setConnected(true)}
+        disabled={!token || !url}
+        style={{ marginTop: '20px', opacity: (!token || !url) ? 0.5 : 1, cursor: (!token || !url) ? 'not-allowed' : 'pointer' }}
+      >
+        INITIALIZE SYSTEM
       </button>
     </div>
   )
