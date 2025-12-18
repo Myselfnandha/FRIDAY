@@ -9,7 +9,7 @@ logger = logging.getLogger("low-ram-vad")
 class WebRTCVAD(vad.VAD):
     def __init__(self, aggressiveness=3):
         # Aggressiveness: 0 (Least) to 3 (Most)
-        super().__init__(capabilities=vad.VADCapabilities(streaming=True))
+        super().__init__(capabilities=vad.VADCapabilities(update_interval=0.1))
         self.vad_model = webrtcvad.Vad(aggressiveness)
         logger.info(f"WebRTCVAD initialized with aggressiveness {aggressiveness}")
 
