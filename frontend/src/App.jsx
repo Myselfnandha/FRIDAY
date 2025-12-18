@@ -144,26 +144,86 @@ function FridayInterface({ setConnected }) {
   const { state, audioTrack } = useVoiceAssistant();
   const [inputText, setInputText] = useState("");
   const [micOn, setMicOn] = useState(true);
+  const [cameraOn, setCameraOn] = useState(false);
+  const [screenShareOn, setScreenShareOn] = useState(false);
   const { localParticipant } = useLocalParticipant();
+  const [toast, setToast] = useState(null);
 
   // Fake conversation history for visual demo
   const [messages, setMessages] = useState([
     { role: 'assistant', text: "Systems online. Alan is ready to serve." },
   ]);
 
-  // Effect to toggle mic (using LiveKit hooks)
+  // Toast Helper
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Effect to toggle mic
   useEffect(() => {
-    localParticipant.setMicrophoneEnabled(micOn);
+    // Only toggle if state differs to avoid loops (though setMicrophoneEnabled handles this)
+    if (localParticipant) {
+        localParticipant.setMicrophoneEnabled(micOn).catch(e => console.error("Mic Error:", e));
+    }
   }, [micOn, localParticipant]);
+
+  // Toggle Camera
+  const toggleCamera = async () => {
+    try {
+        const newState = !cameraOn;
+        await localParticipant.setCameraEnabled(newState);
+        setCameraOn(newState);
+        showToast(newState ? "Camera Enabled" : "Camera Disabled");
+    } catch(e) {
+        showToast("Error toggling camera");
+        console.error(e);
+    }
+  };
+
+  // Toggle Screen Share
+  const toggleScreenShare = async () => {
+    try {
+        const newState = !screenShareOn;
+        await localParticipant.setScreenShareEnabled(newState);
+        setScreenShareOn(newState);
+        showToast(newState ? "Screen Share Active" : "Screen Share Stopped");
+    } catch(e) {
+        showToast("Error toggling screen share");
+        console.error(e);
+    }
+  };
 
   const handleSend = () => {
     if (!inputText.trim()) return;
     setMessages(prev => [...prev, { role: 'user', text: inputText }]);
     setInputText("");
+    showToast("Command sent (Text-to-Speech simulation)");
+    // Note: To make this real, backend needs a data channel handler.
   };
 
   return (
     <div className="friday-ui-container">
+      {/* Toast Notification */}
+      {toast && (
+          <div style={{
+              position: 'absolute', 
+              top: '20px', 
+              left: '50%', 
+              transform: 'translateX(-50%)', 
+              background: 'rgba(0, 217, 255, 0.2)', 
+              color: '#fff', 
+              padding: '8px 16px', 
+              borderRadius: '20px', 
+              backdropFilter: 'blur(5px)',
+              border: '1px solid rgba(0, 217, 255, 0.5)',
+              zIndex: 100,
+              fontSize: '0.9rem'
+          }}>
+              {toast}
+          </div>
+      )}
+
       {/* Top Status */}
       <div style={{ marginTop: '20px', display: 'flex', gap: '5px' }}>
         {[...Array(4)].map((_, i) => (
@@ -219,25 +279,25 @@ function FridayInterface({ setConnected }) {
 
         {/* Action Buttons */}
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button className={`icon-btn ${micOn ? '' : 'active'}`} onClick={() => setMicOn(!micOn)}>
+          <button className={`icon-btn ${micOn ? '' : 'active'}`} onClick={() => setMicOn(!micOn)} title="Toggle Microphone">
             {micOn ? <Mic size={20} /> : <MicOff size={20} />}
             <ChevronDown size={14} style={{ marginLeft: 4 }} />
           </button>
 
-          <button className="icon-btn">
-            <VideoOff size={20} />
+          <button className={`icon-btn ${cameraOn ? 'active' : ''}`} onClick={toggleCamera} title="Toggle Camera">
+             {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
             <ChevronDown size={14} style={{ marginLeft: 4 }} />
           </button>
 
-          <button className="icon-btn">
+          <button className={`icon-btn ${screenShareOn ? 'active' : ''}`} onClick={toggleScreenShare} title="Share Screen">
             <MonitorUp size={20} />
           </button>
 
-          <button className="icon-btn active">
+          <button className="icon-btn active" onClick={() => showToast("Chat feature active")} title="Chat">
             <MessageSquare size={20} />
           </button>
 
-          <button className="icon-btn danger" onClick={() => setConnected(false)}>
+          <button className="icon-btn danger" onClick={() => setConnected(false)} title="Disconnect">
             <PhoneOff size={20} style={{ marginRight: 8 }} />
             EXIT
           </button>
