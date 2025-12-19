@@ -53,6 +53,7 @@ export default function App() {
   }, []);
 
   const handleStart = () => {
+    console.log("Engage initiated");
     setConnected(true);
   };
 
@@ -94,7 +95,9 @@ export default function App() {
                 letterSpacing: '2px',
                 cursor: 'pointer',
                 clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)',
-                transition: 'all 0.3s'
+                transition: 'all 0.3s',
+                position: 'relative',
+                zIndex: 1000
               }}
               onMouseOver={e => e.currentTarget.style.background = 'rgba(0, 217, 255, 0.4)'}
               onMouseOut={e => e.currentTarget.style.background = 'rgba(0, 217, 255, 0.2)'}
@@ -124,7 +127,15 @@ export default function App() {
           serverUrl={url}
           data-lk-theme="default"
           style={{ height: '100vh', width: '100%' }}
-          onDisconnected={() => setConnected(false)}
+          onDisconnected={() => {
+            console.log("Disconnected from room");
+            setConnected(false);
+          }}
+          onError={(e) => {
+            console.error("LiveKit Room Error:", e);
+            setError(e.message || "Connection failed");
+            setConnected(false);
+          }}
         >
           <FridayInterface setConnected={setConnected} />
           <RoomAudioRenderer />
