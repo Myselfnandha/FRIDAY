@@ -37,7 +37,7 @@ export default function App() {
         if (data.token && data.url) {
           setToken(data.token);
           setUrl(data.url);
-          // setConnected(true); // Removed auto-jump to avoid AudioContext issues
+          setConnected(true); // Auto-connect immediately
         } else {
           throw new Error("Invalid token response");
         }
@@ -51,13 +51,6 @@ export default function App() {
 
     autoConnect();
   }, []);
-
-  const handleStart = () => {
-    console.log("Engage initiated");
-    console.log("Token:", token ? "Present" : "Missing");
-    console.log("URL:", url);
-    setConnected(true);
-  };
 
   return (
     <div className="sci-fi-bg">
@@ -84,32 +77,6 @@ export default function App() {
             {isInitializing ? "ESTABLISHING UPLINK..." : (token ? "SYSTEM READY" : "CONNECTION INTERRUPTED")}
           </h2>
 
-          {token && !connected && (
-            <button
-              onClick={handleStart}
-              style={{
-                marginTop: '20px',
-                background: 'rgba(0, 217, 255, 0.2)',
-                border: '1px solid #00d9ff',
-                color: '#00d9ff',
-                padding: '16px 48px',
-                fontSize: '1.2rem',
-                letterSpacing: '3px',
-                cursor: 'pointer',
-                borderRadius: '8px',
-                boxShadow: '0 0 20px rgba(0, 217, 255, 0.3)',
-                transition: 'all 0.3s',
-                position: 'relative',
-                zIndex: 9999,
-                pointerEvents: 'auto'
-              }}
-              onMouseOver={e => e.currentTarget.style.background = 'rgba(0, 217, 255, 0.4)'}
-              onMouseOut={e => e.currentTarget.style.background = 'rgba(0, 217, 255, 0.2)'}
-            >
-              ENGAGE
-            </button>
-          )}
-
           {error && (
             <div style={{ marginTop: '20px', color: '#ffaaaa', textAlign: 'center', maxWidth: '300px' }}>
               <p>Could not auto-connect to FRIDAY.</p>
@@ -129,6 +96,7 @@ export default function App() {
           audio={true}
           token={token}
           serverUrl={url}
+          connectOptions={{ autoSubscribe: true }}
           data-lk-theme="default"
           style={{ height: '100vh', width: '100%' }}
           onDisconnected={() => {
