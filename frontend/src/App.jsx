@@ -54,6 +54,8 @@ export default function App() {
 
   const handleStart = () => {
     console.log("Engage initiated");
+    console.log("Token:", token ? "Present" : "Missing");
+    console.log("URL:", url);
     setConnected(true);
   };
 
@@ -90,14 +92,16 @@ export default function App() {
                 background: 'rgba(0, 217, 255, 0.2)',
                 border: '1px solid #00d9ff',
                 color: '#00d9ff',
-                padding: '10px 30px',
-                fontSize: '1rem',
-                letterSpacing: '2px',
+                padding: '16px 48px',
+                fontSize: '1.2rem',
+                letterSpacing: '3px',
                 cursor: 'pointer',
-                clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)',
+                borderRadius: '8px',
+                boxShadow: '0 0 20px rgba(0, 217, 255, 0.3)',
                 transition: 'all 0.3s',
                 position: 'relative',
-                zIndex: 1000
+                zIndex: 9999,
+                pointerEvents: 'auto'
               }}
               onMouseOver={e => e.currentTarget.style.background = 'rgba(0, 217, 255, 0.4)'}
               onMouseOut={e => e.currentTarget.style.background = 'rgba(0, 217, 255, 0.2)'}
