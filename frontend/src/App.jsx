@@ -4,6 +4,8 @@ import {
   RoomAudioRenderer,
   useLocalParticipant,
   useVoiceAssistant,
+  useChat,
+  useTrackTranscription,
 } from '@livekit/components-react';
 import { Mic, MicOff, Video, VideoOff, MessageSquare, MonitorUp, PhoneOff, Send, ChevronDown } from 'lucide-react';
 import './index.css';
@@ -140,7 +142,6 @@ function ManualConnect({ setConnected, setToken, setUrl }) {
   )
 }
 
-import { useTrackTranscription } from '@livekit/components-react';
 
 // ... (imports remain the same)
 
@@ -152,19 +153,12 @@ function FridayInterface({ setConnected }) {
   const [screenShareOn, setScreenShareOn] = useState(false);
   const { localParticipant } = useLocalParticipant();
   const [toast, setToast] = useState(null);
-  const [showMemory, setShowMemory] = useState(false);
+  
+  // UI Panels
+  const [activePanel, setActivePanel] = useState(null); // 'memory', 'system', 'chat'
 
-  // Real-time Transcription Hook
-  // Note: This requires the agent/backend to be publishing a transcription track, 
-  // OR we use the frontend's speech recognition if available. 
-  // For this demo, we'll visualize the 'state' and simply show a caption placeholder 
-  // that would normally be filled by the STT event.
-  // In a full implementation: const { segments } = useTrackTranscription(agentAudioTrack);
-
-  // Fake conversation history for visual demo
-  const [messages, setMessages] = useState([
-    { role: 'assistant', text: "Systems online. Alan is ready to serve." },
-  ]);
+  // Chat Hook (Handles real-time messages with the Room)
+  const { send, chatMessages, isSending } = useChat();
 
   // Toast Helper
   const showToast = (msg) => {
@@ -175,102 +169,127 @@ function FridayInterface({ setConnected }) {
   // Effect to toggle mic
   useEffect(() => {
     if (localParticipant) {
-      localParticipant.setMicrophoneEnabled(micOn).catch(e => console.error("Mic Error:", e));
+        localParticipant.setMicrophoneEnabled(micOn).catch(e => console.error("Mic Error:", e));
     }
   }, [micOn, localParticipant]);
 
   // Toggle Camera
   const toggleCamera = async () => {
     try {
-      const newState = !cameraOn;
-      await localParticipant.setCameraEnabled(newState);
-      setCameraOn(newState);
-      showToast(newState ? "Camera Enabled" : "Camera Disabled");
-    } catch (e) {
-      showToast("Error toggling camera");
-      console.error(e);
+        const newState = !cameraOn;
+        await localParticipant.setCameraEnabled(newState);
+        setCameraOn(newState);
+        showToast(newState ? "Camera Module: Online" : "Camera Module: Offline");
+    } catch(e) {
+        showToast("Error: Camera Module Failed");
+        console.error(e);
     }
   };
 
   // Toggle Screen Share
   const toggleScreenShare = async () => {
     try {
-      const newState = !screenShareOn;
-      await localParticipant.setScreenShareEnabled(newState);
-      setScreenShareOn(newState);
-      showToast(newState ? "Screen Share Active" : "Screen Share Stopped");
-    } catch (e) {
-      showToast("Error toggling screen share");
-      console.error(e);
+        const newState = !screenShareOn;
+        await localParticipant.setScreenShareEnabled(newState);
+        setScreenShareOn(newState);
+        showToast(newState ? "Screen Mirroring: Active" : "Screen Mirroring: Offline");
+    } catch(e) {
+        showToast("Error: Screen Share Failed");
+        console.error(e);
     }
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!inputText.trim()) return;
-    setMessages(prev => [...prev, { role: 'user', text: inputText }]);
-    setInputText("");
-    showToast("Command sent");
+    try {
+        // Send to LiveKit Chat (Agent should listen to this)
+        await send(inputText); 
+        setInputText("");
+        showToast("Command Transmitted");
+    } catch (e) {
+        showToast("Transmission Failed");
+        console.error(e);
+    }
+  };
+
+  const executeSystemCommand = async (cmd) => {
+      showToast(`Executing: ${cmd}`);
+      try {
+          // Send as a chat message which the agent interprets as an instruction
+          await send(`Execute system command: ${cmd}`);
+      } catch (e) {
+          console.error(e);
+      }
   };
 
   return (
     <div className="friday-ui-container">
       {/* Toast Notification */}
       {toast && (
-        <div style={{
-          position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(0, 217, 255, 0.2)', color: '#fff', padding: '8px 16px',
-          borderRadius: '20px', backdropFilter: 'blur(5px)', border: '1px solid rgba(0, 217, 255, 0.5)',
-          zIndex: 100, fontSize: '0.9rem'
-        }}>
-          {toast}
-        </div>
-      )}
-
-      {/* Memory Screen Overlay */}
-      {showMemory && (
-        <div style={{
-          position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-          background: 'rgba(0,0,0,0.9)', zIndex: 50, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)'
-        }}>
-          <h2 style={{ color: '#00d9ff', borderBottom: '1px solid #00d9ff', paddingBottom: '10px' }}>CORE MEMORY BANKS</h2>
-          <div style={{ width: '80%', height: '60%', overflowY: 'auto', border: '1px solid #333', padding: '20px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)' }}>
-            <p style={{ color: '#888' }}>Acccessing neural pathways...</p>
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              {[
-                "User prefers verified Python solutions.",
-                "Default project path: C:\\Users\\VOYAGER\\Desktop\\FRIDAY",
-                "System Mode: Jarvis/Friday Hybrid",
-                "Last Interaction: Deployment Troubleshooting"
-              ].map((mem, i) => (
-                <li key={i} style={{ marginBottom: '10px', padding: '10px', borderLeft: '2px solid #00d9ff', background: 'rgba(0,217,255,0.1)' }}>
-                  {mem}
-                </li>
-              ))}
-            </ul>
+          <div style={{
+              position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', 
+              background: 'rgba(0, 217, 255, 0.2)', color: '#fff', padding: '8px 16px', 
+              borderRadius: '20px', backdropFilter: 'blur(5px)', border: '1px solid rgba(0, 217, 255, 0.5)',
+              zIndex: 100, fontSize: '0.9rem', boxShadow: '0 0 15px rgba(0, 217, 255, 0.3)'
+          }}>
+              {toast}
           </div>
-          <button onClick={() => setShowMemory(false)} className="icon-btn" style={{ marginTop: '20px', width: 'auto', padding: '0 20px' }}>
-            CLOSE MEMORY
-          </button>
+      )}
+
+      {/* PANELS OVERLAY */}
+      {activePanel === 'memory' && (
+        <div className="panel-overlay">
+            <h2 className="panel-header">CORE MEMORY BANKS</h2>
+            <div className="panel-content">
+                <p style={{color: '#8b9bb4', fontSize: '0.9rem'}}>Retrieving stored context nodes...</p>
+                <div style={{marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                     {/* Placeholder Memories */}
+                    {["User prefers verified Python solutions.", "System Mode: Jarvis/Friday Hybrid", "Project Path: C:\\Users\\VOYAGER\\Desktop\\FRIDAY"].map((m, i) => (
+                        <div key={i} style={{background: 'rgba(0,255,157,0.1)', borderLeft: '3px solid #00ff9d', padding: '10px', fontSize: '0.9rem'}}>
+                            {m}
+                        </div>
+                    ))}
+                </div>
+            </div>
+            <button onClick={() => setActivePanel(null)} className="panel-close-btn">CLOSE HUB</button>
         </div>
       )}
 
-      {/* Real-time Voice Caption Header */}
-      <div style={{
-        marginTop: '60px', /* Push down below toast */
-        textAlign: 'center',
-        height: '40px'
-      }}>
+      {activePanel === 'system' && (
+        <div className="panel-overlay">
+            <h2 className="panel-header">SYSTEM CONTROL MODULE</h2>
+            <div className="panel-content grid-layout">
+                <button className="sys-btn" onClick={() => executeSystemCommand("Open Calculator")}>
+                    🔢 Calculator
+                </button>
+                <button className="sys-btn" onClick={() => executeSystemCommand("Open Notepad")}>
+                    📝 Notepad
+                </button>
+                <button className="sys-btn" onClick={() => executeSystemCommand("Check System Status")}>
+                    📊 System Status
+                </button>
+                <button className="sys-btn" onClick={() => executeSystemCommand("Close Active Window")}>
+                    ❌ Close Window
+                </button>
+                 <button className="sys-btn" onClick={() => executeSystemCommand("Open Browser")}>
+                    🌐 Web Browser
+                </button>
+                <button className="sys-btn" onClick={() => executeSystemCommand("Terminal")}>
+                    💻 Terminal
+                </button>
+            </div>
+            <button onClick={() => setActivePanel(null)} className="panel-close-btn">CLOSE CONTROLS</button>
+        </div>
+      )}
+
+       {/* Real-time Voice Caption Header */}
+      <div style={{ marginTop: '60px', textAlign: 'center', height: '40px' }}>
         {state === 'listening' ? (
-          <div style={{ color: '#00d9ff', fontWeight: 'bold', letterSpacing: '1px', animation: 'pulse-text 2s infinite' }}>
-            LISTENING...
-          </div>
+            <div style={{color: '#00d9ff', fontWeight: 'bold', letterSpacing: '1px', animation: 'pulse-text 2s infinite'}}>LISTENING...</div>
         ) : state === 'speaking' ? (
-          <div style={{ color: '#ff00ff', fontWeight: 'bold', letterSpacing: '1px' }}>
-            FRIDAY SPEAKING...
-          </div>
+            <div style={{color: '#ff00ff', fontWeight: 'bold', letterSpacing: '1px'}}>FRIDAY SPEAKING...</div>
         ) : (
-          <div style={{ color: '#555', fontSize: '0.8rem' }}>AWAITING INPUT</div>
+             <div style={{color: '#555', fontSize: '0.8rem'}}>AWAITING INPUT</div>
         )}
       </div>
 
@@ -285,14 +304,18 @@ function FridayInterface({ setConnected }) {
         }}></div>
       </div>
 
-      {/* Conversation Overlay */}
-      <div className="chat-overlay">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`chat-message ${msg.role}`}>
-            {msg.text}
+      {/* Chat / Messages Overlay */}
+      {/* Show last 3 messages always if not in a panel */}
+      {!activePanel && (
+          <div className="chat-overlay">
+            {chatMessages.length === 0 && <div className="chat-message assistant">Systems online. Ready.</div>}
+            {chatMessages.slice(-3).map((msg) => (
+              <div key={msg.timestamp} className={`chat-message ${msg.from?.identity === localParticipant?.identity ? 'user' : 'assistant'}`}>
+                {msg.message}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+      )}
 
       {/* Dropdown / Spacer */}
       <div style={{ flex: 1 }}></div>
@@ -308,8 +331,8 @@ function FridayInterface({ setConnected }) {
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           />
-          <button onClick={handleSend} style={{ background: '#333', border: 'none', borderRadius: '12px', padding: '6px 12px', color: '#fff', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
-            SEND
+          <button onClick={handleSend} disabled={isSending} style={{ background: '#333', border: 'none', borderRadius: '12px', padding: '6px 12px', color: '#fff', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
+            {isSending ? '...' : 'SEND'}
           </button>
         </div>
 
@@ -317,28 +340,62 @@ function FridayInterface({ setConnected }) {
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className={`icon-btn ${micOn ? '' : 'active'}`} onClick={() => setMicOn(!micOn)} title="Toggle Microphone">
             {micOn ? <Mic size={20} /> : <MicOff size={20} />}
-            <ChevronDown size={14} style={{ marginLeft: 4 }} />
           </button>
 
-          <button className={`icon-btn ${cameraOn ? 'active' : ''}`} onClick={toggleCamera} title="Toggle Camera">
-            {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
-            <ChevronDown size={14} style={{ marginLeft: 4 }} />
+          <button className={`icon-btn ${cameraOn ? 'active' : ''}`} onClick={toggleCamera} title="Camera Module">
+             {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
           </button>
 
-          <button className={`icon-btn ${screenShareOn ? 'active' : ''}`} onClick={toggleScreenShare} title="Share Screen">
+          <button className={`icon-btn ${screenShareOn ? 'active' : ''}`} onClick={toggleScreenShare} title="Screen Mirroring">
             <MonitorUp size={20} />
           </button>
 
-          <button className={`icon-btn ${showMemory ? 'active' : ''}`} onClick={() => setShowMemory(!showMemory)} title="Access Memory Banks">
+          {/* System Control Button */}
+          <button className={`icon-btn ${activePanel === 'system' ? 'active' : ''}`} onClick={() => setActivePanel(activePanel === 'system' ? null : 'system')} title="System Controls">
+            <ChevronDown size={20} style={{transform: activePanel === 'system' ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s'}} />
+          </button>
+
+          {/* Memory Button */}
+          <button className={`icon-btn ${activePanel === 'memory' ? 'active' : ''}`} onClick={() => setActivePanel(activePanel === 'memory' ? null : 'memory')} title="Memory Banks">
             <MessageSquare size={20} />
           </button>
 
           <button className="icon-btn danger" onClick={() => setConnected(false)} title="Disconnect">
-            <PhoneOff size={20} style={{ marginRight: 8 }} />
-            EXIT
+            <PhoneOff size={20} />
           </button>
         </div>
       </div>
+      
+      {/* Inline Styles for Panels */}
+      <style>{`
+        .panel-overlay {
+            position: absolute; top: 10%; left: 50%; transform: translateX(-50%);
+            width: 80%; max-width: 500px; height: 60%;
+            background: rgba(10, 15, 30, 0.95);
+            border: 1px solid #00d9ff;
+            border-radius: 15px;
+            z-index: 50;
+            display: flex; flex-direction: column;
+            padding: 20px;
+            box-shadow: 0 0 30px rgba(0, 217, 255, 0.2);
+            backdrop-filter: blur(10px);
+        }
+        .panel-header {
+            color: #00d9ff; border-bottom: 1px solid rgba(0, 217, 255, 0.3); padding-bottom: 10px; margin-top: 0; text-align: center; font-size: 1.2rem; letter-spacing: 2px;
+        }
+        .panel-content {
+            flex: 1; overflow-y: auto; padding-top: 20px;
+        }
+        .panel-close-btn {
+             background: transparent; border: 1px solid #ff3b30; color: #ff3b30; padding: 10px; border-radius: 8px; cursor: pointer; margin-top: 10px; letter-spacing: 1px; font-weight: bold; transition: all 0.2s;
+        }
+        .panel-close-btn:hover { background: #ff3b30; color: white; }
+        .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .sys-btn {
+            background: rgba(255,255,255,0.05); border: 1px solid #333; color: white; padding: 15px; border-radius: 10px; cursor: pointer; transition: all 0.2s; text-align: left;
+        }
+        .sys-btn:hover { background: rgba(0, 217, 255, 0.1); border-color: #00d9ff; }
+      `}</style>
     </div>
   )
 }
@@ -352,3 +409,83 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+function ControlPanel({ onClose, onCommand }) {
+  const [activeTab, setActiveTab] = useState('windows');
+
+  const tabs = [
+    { id: 'windows', label: 'WINDOWS' },
+    { id: 'android', label: 'ANDROID' },
+    { id: 'memory', label: 'MEMORY' },
+  ];
+
+  const modules = {
+    windows: [
+      { label: 'Open Notepad', cmd: 'Open Notepad on Windows' },
+      { label: 'Open Calculator', cmd: 'Open Calculator on Windows' },
+      { label: 'Open Chrome', cmd: 'Open Chrome on Windows' },
+      { label: 'Close Notepad', cmd: 'Close Notepad on Windows' },
+    ],
+    android: [
+      { label: 'Open WhatsApp', cmd: 'Open package com.whatsapp on Android' },
+      { label: 'Open YouTube', cmd: 'Open package com.google.android.youtube on Android' },
+      { label: 'Google Assistant', cmd: 'Ask Android Assistant to listen' },
+      { label: 'Kill WhatsApp', cmd: 'Close package com.whatsapp on Android' },
+    ],
+    memory: [
+      { label: 'Save Context', cmd: 'Save current context to memory' },
+      { label: 'Recall Deployment', cmd: 'Recall memory about deployment issues' },
+      { label: 'Recall User Prefs', cmd: 'Recall user preferences' },
+    ],
+  };
+
+  return (
+    <div style={{
+      position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+      background: 'rgba(10, 10, 15, 0.95)', zIndex: 150, display: 'flex', flexDirection: 'column',
+      padding: '40px', boxSizing: 'border-box', backdropFilter: 'blur(10px)'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #333', paddingBottom: '10px' }}>
+        <h2 style={{ color: '#00d9ff', margin: 0, letterSpacing: '2px' }}>SYSTEM MODULES</h2>
+        <button onClick={onClose} style={{ background: 'transparent', border: '1px solid #555', color: '#fff', cursor: 'pointer', padding: '5px 15px', borderRadius: '4px' }}>CLOSE</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              flex: 1, padding: '10px', background: activeTab === tab.id ? 'rgba(0, 217, 255, 0.2)' : 'rgba(255,255,255,0.05)',
+              border: activeTab === tab.id ? '1px solid #00d9ff' : '1px solid #333', color: '#fff', cursor: 'pointer',
+              fontWeight: 'bold', borderRadius: '4px', transition: 'all 0.3s'
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px', overflowY: 'auto' }}>
+        {modules[activeTab].map((mod, i) => (
+          <button
+            key={i}
+            onClick={() => onCommand(mod.cmd)}
+            className="module-btn"
+            style={{
+              padding: '20px', background: 'rgba(0,0,0,0.4)', border: '1px solid #00d9ff',
+              color: '#00d9ff', borderRadius: '8px', cursor: 'pointer', textAlign: 'center',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: '10px', transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0, 217, 255, 0.1)'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.4)'}
+          >
+            {/* You could add icons here based on label */}
+            <span style={{ fontWeight: '600' }}>{mod.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
