@@ -8,6 +8,7 @@ import {
   useTrackTranscription,
 } from '@livekit/components-react';
 import { Mic, MicOff, Video, VideoOff, MessageSquare, MonitorUp, PhoneOff, Send, ChevronDown } from 'lucide-react';
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import './index.css';
 
 // Hardcoded Default Backend for Instant Launch
@@ -36,7 +37,7 @@ export default function App() {
         if (data.token && data.url) {
           setToken(data.token);
           setUrl(data.url);
-          setConnected(true); // Auto-jump to main screen
+          // setConnected(true); // Removed auto-jump to avoid AudioContext issues
         } else {
           throw new Error("Invalid token response");
         }
@@ -51,8 +52,13 @@ export default function App() {
     autoConnect();
   }, []);
 
+  const handleStart = () => {
+    setConnected(true);
+  };
+
   return (
     <div className="sci-fi-bg">
+      <SpeedInsights />
       {/* Background Animated Lines */}
       {[...Array(10)].map((_, i) => (
         <div key={i} className="vertical-line" style={{ left: `${i * 10 + 5}%`, animationDelay: `${i * 0.5}s`, height: `${Math.random() * 100 + 50}px` }}></div>
@@ -72,8 +78,30 @@ export default function App() {
           </div>
 
           <h2 style={{ marginTop: '2rem', fontSize: '1.2rem', color: '#fff', fontWeight: 400 }}>
-            {isInitializing ? "INITIALIZING SYSTEMS..." : "CONNECTION INTERRUPTED"}
+            {isInitializing ? "ESTABLISHING UPLINK..." : (token ? "SYSTEM READY" : "CONNECTION INTERRUPTED")}
           </h2>
+
+          {token && !connected && (
+            <button
+              onClick={handleStart}
+              style={{
+                marginTop: '20px',
+                background: 'rgba(0, 217, 255, 0.2)',
+                border: '1px solid #00d9ff',
+                color: '#00d9ff',
+                padding: '10px 30px',
+                fontSize: '1rem',
+                letterSpacing: '2px',
+                cursor: 'pointer',
+                clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)',
+                transition: 'all 0.3s'
+              }}
+              onMouseOver={e => e.currentTarget.style.background = 'rgba(0, 217, 255, 0.4)'}
+              onMouseOut={e => e.currentTarget.style.background = 'rgba(0, 217, 255, 0.2)'}
+            >
+              ENGAGE
+            </button>
+          )}
 
           {error && (
             <div style={{ marginTop: '20px', color: '#ffaaaa', textAlign: 'center', maxWidth: '300px' }}>
@@ -153,7 +181,7 @@ function FridayInterface({ setConnected }) {
   const [screenShareOn, setScreenShareOn] = useState(false);
   const { localParticipant } = useLocalParticipant();
   const [toast, setToast] = useState(null);
-  
+
   // UI Panels
   const [activePanel, setActivePanel] = useState(null); // 'memory', 'system', 'chat'
 
@@ -169,127 +197,127 @@ function FridayInterface({ setConnected }) {
   // Effect to toggle mic
   useEffect(() => {
     if (localParticipant) {
-        localParticipant.setMicrophoneEnabled(micOn).catch(e => console.error("Mic Error:", e));
+      localParticipant.setMicrophoneEnabled(micOn).catch(e => console.error("Mic Error:", e));
     }
   }, [micOn, localParticipant]);
 
   // Toggle Camera
   const toggleCamera = async () => {
     try {
-        const newState = !cameraOn;
-        await localParticipant.setCameraEnabled(newState);
-        setCameraOn(newState);
-        showToast(newState ? "Camera Module: Online" : "Camera Module: Offline");
-    } catch(e) {
-        showToast("Error: Camera Module Failed");
-        console.error(e);
+      const newState = !cameraOn;
+      await localParticipant.setCameraEnabled(newState);
+      setCameraOn(newState);
+      showToast(newState ? "Camera Module: Online" : "Camera Module: Offline");
+    } catch (e) {
+      showToast("Error: Camera Module Failed");
+      console.error(e);
     }
   };
 
   // Toggle Screen Share
   const toggleScreenShare = async () => {
     try {
-        const newState = !screenShareOn;
-        await localParticipant.setScreenShareEnabled(newState);
-        setScreenShareOn(newState);
-        showToast(newState ? "Screen Mirroring: Active" : "Screen Mirroring: Offline");
-    } catch(e) {
-        showToast("Error: Screen Share Failed");
-        console.error(e);
+      const newState = !screenShareOn;
+      await localParticipant.setScreenShareEnabled(newState);
+      setScreenShareOn(newState);
+      showToast(newState ? "Screen Mirroring: Active" : "Screen Mirroring: Offline");
+    } catch (e) {
+      showToast("Error: Screen Share Failed");
+      console.error(e);
     }
   };
 
   const handleSend = async () => {
     if (!inputText.trim()) return;
     try {
-        // Send to LiveKit Chat (Agent should listen to this)
-        await send(inputText); 
-        setInputText("");
-        showToast("Command Transmitted");
+      // Send to LiveKit Chat (Agent should listen to this)
+      await send(inputText);
+      setInputText("");
+      showToast("Command Transmitted");
     } catch (e) {
-        showToast("Transmission Failed");
-        console.error(e);
+      showToast("Transmission Failed");
+      console.error(e);
     }
   };
 
   const executeSystemCommand = async (cmd) => {
-      showToast(`Executing: ${cmd}`);
-      try {
-          // Send as a chat message which the agent interprets as an instruction
-          await send(`Execute system command: ${cmd}`);
-      } catch (e) {
-          console.error(e);
-      }
+    showToast(`Executing: ${cmd}`);
+    try {
+      // Send as a chat message which the agent interprets as an instruction
+      await send(`Execute system command: ${cmd}`);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
     <div className="friday-ui-container">
       {/* Toast Notification */}
       {toast && (
-          <div style={{
-              position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', 
-              background: 'rgba(0, 217, 255, 0.2)', color: '#fff', padding: '8px 16px', 
-              borderRadius: '20px', backdropFilter: 'blur(5px)', border: '1px solid rgba(0, 217, 255, 0.5)',
-              zIndex: 100, fontSize: '0.9rem', boxShadow: '0 0 15px rgba(0, 217, 255, 0.3)'
-          }}>
-              {toast}
-          </div>
+        <div style={{
+          position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(0, 217, 255, 0.2)', color: '#fff', padding: '8px 16px',
+          borderRadius: '20px', backdropFilter: 'blur(5px)', border: '1px solid rgba(0, 217, 255, 0.5)',
+          zIndex: 100, fontSize: '0.9rem', boxShadow: '0 0 15px rgba(0, 217, 255, 0.3)'
+        }}>
+          {toast}
+        </div>
       )}
 
       {/* PANELS OVERLAY */}
       {activePanel === 'memory' && (
         <div className="panel-overlay">
-            <h2 className="panel-header">CORE MEMORY BANKS</h2>
-            <div className="panel-content">
-                <p style={{color: '#8b9bb4', fontSize: '0.9rem'}}>Retrieving stored context nodes...</p>
-                <div style={{marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px'}}>
-                     {/* Placeholder Memories */}
-                    {["User prefers verified Python solutions.", "System Mode: Jarvis/Friday Hybrid", "Project Path: C:\\Users\\VOYAGER\\Desktop\\FRIDAY"].map((m, i) => (
-                        <div key={i} style={{background: 'rgba(0,255,157,0.1)', borderLeft: '3px solid #00ff9d', padding: '10px', fontSize: '0.9rem'}}>
-                            {m}
-                        </div>
-                    ))}
+          <h2 className="panel-header">CORE MEMORY BANKS</h2>
+          <div className="panel-content">
+            <p style={{ color: '#8b9bb4', fontSize: '0.9rem' }}>Retrieving stored context nodes...</p>
+            <div style={{ marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Placeholder Memories */}
+              {["User prefers verified Python solutions.", "System Mode: Jarvis/Friday Hybrid", "Project Path: C:\\Users\\VOYAGER\\Desktop\\FRIDAY"].map((m, i) => (
+                <div key={i} style={{ background: 'rgba(0,255,157,0.1)', borderLeft: '3px solid #00ff9d', padding: '10px', fontSize: '0.9rem' }}>
+                  {m}
                 </div>
+              ))}
             </div>
-            <button onClick={() => setActivePanel(null)} className="panel-close-btn">CLOSE HUB</button>
+          </div>
+          <button onClick={() => setActivePanel(null)} className="panel-close-btn">CLOSE HUB</button>
         </div>
       )}
 
       {activePanel === 'system' && (
         <div className="panel-overlay">
-            <h2 className="panel-header">SYSTEM CONTROL MODULE</h2>
-            <div className="panel-content grid-layout">
-                <button className="sys-btn" onClick={() => executeSystemCommand("Open Calculator")}>
-                    🔢 Calculator
-                </button>
-                <button className="sys-btn" onClick={() => executeSystemCommand("Open Notepad")}>
-                    📝 Notepad
-                </button>
-                <button className="sys-btn" onClick={() => executeSystemCommand("Check System Status")}>
-                    📊 System Status
-                </button>
-                <button className="sys-btn" onClick={() => executeSystemCommand("Close Active Window")}>
-                    ❌ Close Window
-                </button>
-                 <button className="sys-btn" onClick={() => executeSystemCommand("Open Browser")}>
-                    🌐 Web Browser
-                </button>
-                <button className="sys-btn" onClick={() => executeSystemCommand("Terminal")}>
-                    💻 Terminal
-                </button>
-            </div>
-            <button onClick={() => setActivePanel(null)} className="panel-close-btn">CLOSE CONTROLS</button>
+          <h2 className="panel-header">SYSTEM CONTROL MODULE</h2>
+          <div className="panel-content grid-layout">
+            <button className="sys-btn" onClick={() => executeSystemCommand("Open Calculator")}>
+              🔢 Calculator
+            </button>
+            <button className="sys-btn" onClick={() => executeSystemCommand("Open Notepad")}>
+              📝 Notepad
+            </button>
+            <button className="sys-btn" onClick={() => executeSystemCommand("Check System Status")}>
+              📊 System Status
+            </button>
+            <button className="sys-btn" onClick={() => executeSystemCommand("Close Active Window")}>
+              ❌ Close Window
+            </button>
+            <button className="sys-btn" onClick={() => executeSystemCommand("Open Browser")}>
+              🌐 Web Browser
+            </button>
+            <button className="sys-btn" onClick={() => executeSystemCommand("Terminal")}>
+              💻 Terminal
+            </button>
+          </div>
+          <button onClick={() => setActivePanel(null)} className="panel-close-btn">CLOSE CONTROLS</button>
         </div>
       )}
 
-       {/* Real-time Voice Caption Header */}
+      {/* Real-time Voice Caption Header */}
       <div style={{ marginTop: '60px', textAlign: 'center', height: '40px' }}>
         {state === 'listening' ? (
-            <div style={{color: '#00d9ff', fontWeight: 'bold', letterSpacing: '1px', animation: 'pulse-text 2s infinite'}}>LISTENING...</div>
+          <div style={{ color: '#00d9ff', fontWeight: 'bold', letterSpacing: '1px', animation: 'pulse-text 2s infinite' }}>LISTENING...</div>
         ) : state === 'speaking' ? (
-            <div style={{color: '#ff00ff', fontWeight: 'bold', letterSpacing: '1px'}}>FRIDAY SPEAKING...</div>
+          <div style={{ color: '#ff00ff', fontWeight: 'bold', letterSpacing: '1px' }}>FRIDAY SPEAKING...</div>
         ) : (
-             <div style={{color: '#555', fontSize: '0.8rem'}}>AWAITING INPUT</div>
+          <div style={{ color: '#555', fontSize: '0.8rem' }}>AWAITING INPUT</div>
         )}
       </div>
 
@@ -307,14 +335,14 @@ function FridayInterface({ setConnected }) {
       {/* Chat / Messages Overlay */}
       {/* Show last 3 messages always if not in a panel */}
       {!activePanel && (
-          <div className="chat-overlay">
-            {chatMessages.length === 0 && <div className="chat-message assistant">Systems online. Ready.</div>}
-            {chatMessages.slice(-3).map((msg) => (
-              <div key={msg.timestamp} className={`chat-message ${msg.from?.identity === localParticipant?.identity ? 'user' : 'assistant'}`}>
-                {msg.message}
-              </div>
-            ))}
-          </div>
+        <div className="chat-overlay">
+          {chatMessages.length === 0 && <div className="chat-message assistant">Systems online. Ready.</div>}
+          {chatMessages.slice(-3).map((msg) => (
+            <div key={msg.timestamp} className={`chat-message ${msg.from?.identity === localParticipant?.identity ? 'user' : 'assistant'}`}>
+              {msg.message}
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Dropdown / Spacer */}
@@ -343,7 +371,7 @@ function FridayInterface({ setConnected }) {
           </button>
 
           <button className={`icon-btn ${cameraOn ? 'active' : ''}`} onClick={toggleCamera} title="Camera Module">
-             {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+            {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
           </button>
 
           <button className={`icon-btn ${screenShareOn ? 'active' : ''}`} onClick={toggleScreenShare} title="Screen Mirroring">
@@ -352,7 +380,7 @@ function FridayInterface({ setConnected }) {
 
           {/* System Control Button */}
           <button className={`icon-btn ${activePanel === 'system' ? 'active' : ''}`} onClick={() => setActivePanel(activePanel === 'system' ? null : 'system')} title="System Controls">
-            <ChevronDown size={20} style={{transform: activePanel === 'system' ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s'}} />
+            <ChevronDown size={20} style={{ transform: activePanel === 'system' ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }} />
           </button>
 
           {/* Memory Button */}
@@ -365,7 +393,7 @@ function FridayInterface({ setConnected }) {
           </button>
         </div>
       </div>
-      
+
       {/* Inline Styles for Panels */}
       <style>{`
         .panel-overlay {
