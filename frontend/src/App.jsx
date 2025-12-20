@@ -4,7 +4,6 @@ import {
   RoomAudioRenderer,
   useLocalParticipant,
   useVoiceAssistant,
-  useChat,
   useTrackTranscription,
 } from '@livekit/components-react';
 import { Mic, MicOff, Video, VideoOff, MessageSquare, MonitorUp, PhoneOff, Send, ChevronDown } from 'lucide-react';
@@ -168,13 +167,41 @@ function FridayInterface({ setConnected }) {
   // UI Panels
   const [activePanel, setActivePanel] = useState(null); // 'memory', 'system', 'chat'
 
-  // Chat Hook (Handles real-time messages with the Room)
-  const { send, chatMessages, isSending } = useChat();
+  // Manual Message State (for chat UI)
+  const [chatMessages, setChatMessages] = useState([]);
+  const [isSending, setIsSending] = useState(false);
 
   // Toast Helper
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
+  };
+
+  // Reliable Data Transmission
+  const sendMessage = async (text) => {
+    if (!localParticipant) return;
+    setIsSending(true);
+    try {
+      // Create JSON payload compatible with backend parser
+      const payload = JSON.stringify({ message: text });
+      const data = new TextEncoder().encode(payload);
+
+      await localParticipant.publishData(data, { reliable: true });
+
+      // Optimistic UI Update
+      setChatMessages(prev => [...prev, {
+        message: text,
+        timestamp: Date.now(),
+        from: { identity: localParticipant.identity }
+      }]);
+
+      showToast("Command Sent");
+    } catch (e) {
+      console.error("Transmission Error:", e);
+      showToast("Transmission Failed");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   // Effect to toggle mic
@@ -212,200 +239,148 @@ function FridayInterface({ setConnected }) {
 
   const handleSend = async () => {
     if (!inputText.trim()) return;
-    try {
-      // Send to LiveKit Chat (Agent should listen to this)
-      await send(inputText);
-      setInputText("");
-      showToast("Command Transmitted");
-    } catch (e) {
-      showToast("Transmission Failed");
-      console.error(e);
-    }
+    await sendMessage(inputText);
+    setInputText("");
   };
 
   const executeSystemCommand = async (cmd) => {
     showToast(`Executing: ${cmd}`);
-    try {
-      // Send as a chat message which the agent interprets as an instruction
-      await send(`Execute system command: ${cmd}`);
-    } catch (e) {
-      console.error(e);
-    }
+    await sendMessage(`Execute system command: ${cmd}`);
   };
+
+  // Greeting State
+  const [showGreeting, setShowGreeting] = useState(false);
+  const scrollRef = useRef(null);
+
+  // Trigger greeting on connect
+  useEffect(() => {
+    if (connected) {
+      setShowGreeting(true);
+      // Auto-hide greeting is handled by CSS animation, but state cleanup is good practice
+      setTimeout(() => setShowGreeting(false), 6000);
+    }
+  }, [connected]);
+
+  // Auto-scroll chat
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
 
   return (
     <div className="friday-ui-container">
-      {/* Toast Notification */}
-      {toast && (
-        <div style={{
-          position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(0, 217, 255, 0.2)', color: '#fff', padding: '8px 16px',
-          borderRadius: '20px', backdropFilter: 'blur(5px)', border: '1px solid rgba(0, 217, 255, 0.5)',
-          zIndex: 100, fontSize: '0.9rem', boxShadow: '0 0 15px rgba(0, 217, 255, 0.3)'
-        }}>
-          {toast}
+      {/* LEFT SIDEBAR: CHAT & CONTROLS */}
+      <div className="sidebar">
+        <div style={{ padding: '20px', borderBottom: '1px solid rgba(0, 217, 255, 0.15)', textAlign: 'center' }}>
+          <h1 style={{ margin: 0, fontSize: '1.2rem', color: '#00d9ff', letterSpacing: '4px' }}>FRIDAY</h1>
+          <div style={{ fontSize: '0.7rem', color: '#555', marginTop: '5px', letterSpacing: '1px' }}>SYSTEM ONLINE</div>
         </div>
-      )}
 
-      {/* PANELS OVERLAY */}
-      {activePanel === 'memory' && (
-        <div className="panel-overlay">
-          <h2 className="panel-header">CORE MEMORY BANKS</h2>
-          <div className="panel-content">
-            <p style={{ color: '#8b9bb4', fontSize: '0.9rem' }}>Retrieving stored context nodes...</p>
-            <div style={{ marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {/* Placeholder Memories */}
-              {["User prefers verified Python solutions.", "System Mode: Jarvis/Friday Hybrid", "Project Path: C:\\Users\\VOYAGER\\Desktop\\FRIDAY"].map((m, i) => (
-                <div key={i} style={{ background: 'rgba(0,255,157,0.1)', borderLeft: '3px solid #00ff9d', padding: '10px', fontSize: '0.9rem' }}>
-                  {m}
-                </div>
-              ))}
+        {/* Chat Area */}
+        <div className="chat-panel" ref={scrollRef}>
+          {chatMessages.length === 0 && (
+            <div style={{ textAlign: 'center', color: '#444', marginTop: '50px', fontStyle: 'italic' }}>
+              Awaiting neural input...
             </div>
-          </div>
-          <button onClick={() => setActivePanel(null)} className="panel-close-btn">CLOSE HUB</button>
-        </div>
-      )}
-
-      {activePanel === 'system' && (
-        <div className="panel-overlay">
-          <h2 className="panel-header">SYSTEM CONTROL MODULE</h2>
-          <div className="panel-content grid-layout">
-            <button className="sys-btn" onClick={() => executeSystemCommand("Open Calculator")}>
-              🔢 Calculator
-            </button>
-            <button className="sys-btn" onClick={() => executeSystemCommand("Open Notepad")}>
-              📝 Notepad
-            </button>
-            <button className="sys-btn" onClick={() => executeSystemCommand("Check System Status")}>
-              📊 System Status
-            </button>
-            <button className="sys-btn" onClick={() => executeSystemCommand("Close Active Window")}>
-              ❌ Close Window
-            </button>
-            <button className="sys-btn" onClick={() => executeSystemCommand("Open Browser")}>
-              🌐 Web Browser
-            </button>
-            <button className="sys-btn" onClick={() => executeSystemCommand("Terminal")}>
-              💻 Terminal
-            </button>
-          </div>
-          <button onClick={() => setActivePanel(null)} className="panel-close-btn">CLOSE CONTROLS</button>
-        </div>
-      )}
-
-      {/* Real-time Voice Caption Header */}
-      <div style={{ marginTop: '60px', textAlign: 'center', height: '40px' }}>
-        {state === 'listening' ? (
-          <div style={{ color: '#00d9ff', fontWeight: 'bold', letterSpacing: '1px', animation: 'pulse-text 2s infinite' }}>LISTENING...</div>
-        ) : state === 'speaking' ? (
-          <div style={{ color: '#ff00ff', fontWeight: 'bold', letterSpacing: '1px' }}>FRIDAY SPEAKING...</div>
-        ) : (
-          <div style={{ color: '#555', fontSize: '0.8rem' }}>AWAITING INPUT</div>
-        )}
-      </div>
-
-      {/* Main Visualizer Area */}
-      <div className="reactor-container">
-        <div className="reactor-ring outer"></div>
-        <div className="reactor-ring inner"></div>
-        <div className="reactor-ticks"></div>
-        <div className="reactor-core" style={{
-          transform: state === 'speaking' ? 'scale(1.5)' : 'scale(1)',
-          animationDuration: state === 'speaking' ? '0.5s' : '2s'
-        }}></div>
-      </div>
-
-      {/* Chat / Messages Overlay */}
-      {/* Show last 3 messages always if not in a panel */}
-      {!activePanel && (
-        <div className="chat-overlay">
-          {chatMessages.length === 0 && <div className="chat-message assistant">Systems online. Ready.</div>}
-          {chatMessages.slice(-3).map((msg) => (
-            <div key={msg.timestamp} className={`chat-message ${msg.from?.identity === localParticipant?.identity ? 'user' : 'assistant'}`}>
+          )}
+          {chatMessages.map((msg, i) => (
+            <div key={i} className={`chat-message ${msg.from?.identity === localParticipant?.identity ? 'user' : 'assistant'}`}>
               {msg.message}
             </div>
           ))}
         </div>
-      )}
 
-      {/* Dropdown / Spacer */}
-      <div style={{ flex: 1 }}></div>
+        {/* Bottom Controls Dock */}
+        <div className="sidebar-controls">
+           {/* Input */}
+           <div className="input-group" style={{ marginBottom: '10px' }}>
+             <input
+               className="input-field"
+               placeholder="Enter command..."
+               value={inputText}
+               onChange={(e) => setInputText(e.target.value)}
+               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+             />
+             <button onClick={handleSend} disabled={isSending} style={{ background: 'transparent', border: 'none', color: '#00d9ff', cursor: 'pointer' }}>
+               <Send size={18} />
+             </button>
+           </div>
 
-      {/* Bottom Control Bar */}
-      <div className="control-bar">
-        {/* Input Field */}
-        <div className="input-group">
-          <input
-            className="input-field"
-            placeholder="Type command..."
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          />
-          <button onClick={handleSend} disabled={isSending} style={{ background: '#333', border: 'none', borderRadius: '12px', padding: '6px 12px', color: '#fff', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
-            {isSending ? '...' : 'SEND'}
-          </button>
+           {/* Toolbar Grid */}
+           <div className="toolbar-grid">
+             <button className={`icon-btn ${micOn ? '' : 'active'}`} onClick={() => setMicOn(!micOn)} title="Mic">
+               {micOn ? <Mic size={18} /> : <MicOff size={18} />}
+             </button>
+             <button className={`icon-btn ${cameraOn ? 'active' : ''}`} onClick={toggleCamera} title="Cam">
+               {cameraOn ? <Video size={18} /> : <VideoOff size={18} />}
+             </button>
+             <button className={`icon-btn ${screenShareOn ? 'active' : ''}`} onClick={toggleScreenShare} title="Screen">
+               <MonitorUp size={18} />
+             </button>
+             <button className={`icon-btn ${activePanel ? 'active' : ''}`} onClick={() => setActivePanel('modules')} title="Modules">
+               <MessageSquare size={18} />
+             </button>
+             <button className="icon-btn danger" onClick={() => setConnected(false)} title="Disconnect">
+               <PhoneOff size={18} />
+             </button>
+           </div>
         </div>
+      </div>
 
-        {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className={`icon-btn ${micOn ? '' : 'active'}`} onClick={() => setMicOn(!micOn)} title="Toggle Microphone">
-            {micOn ? <Mic size={20} /> : <MicOff size={20} />}
-          </button>
+      {/* MAIN STAGE: VISUALIZER */}
+      <div className="main-stage">
+         {/* System Greeting */}
+         {showGreeting && (
+           <div className="system-greeting">
+             SYSTEM ONLINE
+             <div style={{ fontSize: '1rem', marginTop: '10px', color: '#fff', opacity: 0.7, letterSpacing: '2px' }}>WELCOME BACK, SIR</div>
+           </div>
+         )}
+         
+         {/* Toast Notification */}
+         {toast && (
+           <div style={{
+             position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)',
+             background: 'rgba(0, 217, 255, 0.2)', color: '#fff', padding: '8px 16px',
+             borderRadius: '20px', backdropFilter: 'blur(5px)', border: '1px solid rgba(0, 217, 255, 0.5)',
+             zIndex: 100, fontSize: '0.9rem', boxShadow: '0 0 15px rgba(0, 217, 255, 0.3)'
+           }}>
+             {toast}
+           </div>
+         )}
 
-          <button className={`icon-btn ${cameraOn ? 'active' : ''}`} onClick={toggleCamera} title="Camera Module">
-            {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
-          </button>
+         {/* Visualizer */}
+         <div className="reactor-container" style={{ transform: 'scale(1.2)' }}>
+           <div className="reactor-ring outer"></div>
+           <div className="reactor-ring inner"></div>
+           <div className="reactor-ticks"></div>
+           <div className="reactor-core" style={{
+             transform: state === 'speaking' ? 'scale(1.5)' : 'scale(1)',
+             animationDuration: state === 'speaking' ? '0.5s' : '2s'
+           }}></div>
+         </div>
 
-          <button className={`icon-btn ${screenShareOn ? 'active' : ''}`} onClick={toggleScreenShare} title="Screen Mirroring">
-            <MonitorUp size={20} />
-          </button>
+         {/* Status Text */}
+         <div style={{ marginTop: '80px', textAlign: 'center', height: '30px' }}>
+           {state === 'listening' ? (
+             <div style={{ color: '#00d9ff', fontWeight: 'bold', letterSpacing: '2px', animation: 'pulse-text 2s infinite' }}>LISTENING...</div>
+           ) : state === 'speaking' ? (
+             <div style={{ color: '#ff00ff', fontWeight: 'bold', letterSpacing: '2px' }}>PROCESSING...</div>
+           ) : (
+             <div style={{ color: '#555', fontSize: '0.8rem', letterSpacing: '1px' }}>IDLE</div>
+           )}
+         </div>
 
-          {/* System Control Button */}
-          <button className={`icon-btn ${activePanel === 'system' ? 'active' : ''}`} onClick={() => setActivePanel(activePanel === 'system' ? null : 'system')} title="System Controls">
-            <ChevronDown size={20} style={{ transform: activePanel === 'system' ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }} />
-          </button>
-
-          {/* Memory Button */}
-          <button className={`icon-btn ${activePanel === 'memory' ? 'active' : ''}`} onClick={() => setActivePanel(activePanel === 'memory' ? null : 'memory')} title="Memory Banks">
-            <MessageSquare size={20} />
-          </button>
-
-          <button className="icon-btn danger" onClick={() => setConnected(false)} title="Disconnect">
-            <PhoneOff size={20} />
-          </button>
-        </div>
+         {/* Module Overlay (if active) */}
+         {activePanel === 'modules' && (
+            <ControlPanel onClose={() => setActivePanel(null)} onCommand={executeSystemCommand} />
+         )}
       </div>
 
       {/* Inline Styles for Panels */}
       <style>{`
-        .panel-overlay {
-            position: absolute; top: 10%; left: 50%; transform: translateX(-50%);
-            width: 80%; max-width: 500px; height: 60%;
-            background: rgba(10, 15, 30, 0.95);
-            border: 1px solid #00d9ff;
-            border-radius: 15px;
-            z-index: 50;
-            display: flex; flex-direction: column;
-            padding: 20px;
-            box-shadow: 0 0 30px rgba(0, 217, 255, 0.2);
-            backdrop-filter: blur(10px);
-        }
-        .panel-header {
-            color: #00d9ff; border-bottom: 1px solid rgba(0, 217, 255, 0.3); padding-bottom: 10px; margin-top: 0; text-align: center; font-size: 1.2rem; letter-spacing: 2px;
-        }
-        .panel-content {
-            flex: 1; overflow-y: auto; padding-top: 20px;
-        }
-        .panel-close-btn {
-             background: transparent; border: 1px solid #ff3b30; color: #ff3b30; padding: 10px; border-radius: 8px; cursor: pointer; margin-top: 10px; letter-spacing: 1px; font-weight: bold; transition: all 0.2s;
-        }
-        .panel-close-btn:hover { background: #ff3b30; color: white; }
-        .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .sys-btn {
-            background: rgba(255,255,255,0.05); border: 1px solid #333; color: white; padding: 15px; border-radius: 10px; cursor: pointer; transition: all 0.2s; text-align: left;
-        }
-        .sys-btn:hover { background: rgba(0, 217, 255, 0.1); border-color: #00d9ff; }
+        /* Keeping styles for ControlPanel just in case it's used elsewhere, but mainly relying on new CSS */
       `}</style>
     </div>
   )

@@ -107,37 +107,51 @@ async def entrypoint(ctx: JobContext):
     # Say initial greeting
     await session.say("Systems online. Alan is ready to serve.", allow_interruptions=True)
 
+import json
+
+# ... (rest of the file until on_data)
+
     @ctx.room.on("data_received")
     def on_data(dp: rtc.DataPacket):
         if dp.data:
             try:
-                text = dp.data.decode("utf-8")
-                logger.info(f"Received text command: {text}")
+                raw_text = dp.data.decode("utf-8")
+                logger.info(f"Received data: {raw_text}")
                 
+                # Try parsing as JSON (LiveKit Chat sends JSON)
+                text_command = raw_text
+                try:
+                    payload = json.loads(raw_text)
+                    if isinstance(payload, dict) and "message" in payload:
+                        text_command = payload["message"]
+                except json.JSONDecodeError:
+                    pass
+                
+                logger.info(f"Processing command: {text_command}")
+
                 # Inject user message into chat context
-                # Note: Depending on the specific Agent version, we might need a different method
-                # This assumes agent.chat_ctx is a list we can append to.
-                user_msg = llm.ChatMessage(role=llm.ChatRole.USER, content=text)
+                # Using agent.chat_ctx if available, otherwise trying session.chat_ctx logic
+                # For this specific Agent structure, context management might be on 'agent' 
+                # but 'llm' and 'say' are definitely on 'session'.
+                
+                user_msg = llm.ChatMessage(role=llm.ChatRole.USER, content=text_command)
+                
+                # Append to context
                 agent.chat_ctx.append(user_msg)
                 
-                # Trigger the agent to process this new message
-                # We force a "speech" turn by asking the LLM to generate a response based on the new context
-                # Since we can't easily trigger the pipeline's internal "thinking" state from outside without STT,
-                # we might have to rely on the agent picking it up or just respond with a confirmation.
-                # For now, we'll try to initiate a response generation if API supports it, 
-                # otherwise we simply acknowledge.
-                
-                # Setup a background task to handle the response generation to avoid blocking
+                # Trigger response
                 import asyncio
                 async def process_text_command():
-                    # Generate response using the LLM directly with current context
-                    stream = agent.llm.chat(chat_ctx=agent.chat_ctx)
-                    await agent.say(stream)
+                    # Use Session's LLM and Say methods
+                    if hasattr(session, 'llm'):
+                        stream = session.llm.chat(chat_ctx=agent.chat_ctx)
+                        await session.say(stream)
+                    else:
+                        logger.warning("Session has no LLM attribute, cannot process command.")
                 
                 asyncio.create_task(process_text_command())
                 
             except Exception as e:
                 logger.error(f"Failed to process data command: {e}")
-
 if __name__ == "__main__":
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
