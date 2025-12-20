@@ -2,7 +2,7 @@ node_modules/
 venv/
 venv_lowram/
 __pycache__/
-.env
+**/.env
 .DS_Store
 dist/
 .vercel/
