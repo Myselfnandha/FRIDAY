@@ -64,19 +64,15 @@ function App() {
     );
 }
 
+import { Sidebar } from './components/Sidebar';
+import { ControlGrid } from './components/ControlGrid';
+
 function MainInterface() {
     const room = useRoomContext();
-    const { state, audioTrack } = useVoiceAssistant(); // requires agent to be publishing audio?
-    // Actually useVoiceAssistant hook might rely on specific track source.
-    // Let's rely on VAD events or audio level for reactor if useVoiceAssistant is tricky without standardized setup.
-    // But typically LK Agents use standard tracks.
-
-    // Calculate Volume for reactor
-    const vol = useTrackVolume(audioTrack); // works if audioTrack is defined
+    const { state, audioTrack } = useVoiceAssistant();
+    const vol = useTrackVolume(audioTrack);
 
     // Determine detailed state
-    // state returns 'listening', 'thinking', 'speaking' (if supported backend)
-    // Detailed fallback:
     const [agentState, setAgentState] = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
 
     useEffect(() => {
@@ -85,13 +81,13 @@ function MainInterface() {
         }
     }, [state]);
 
-    // Manual Agent Loop workaround if hook doesn't pick up custom agent events:
+    // Manual Agent Loop workaround
     useEffect(() => {
         if (!room) return;
         const onSpeakersChanged = (speakers: any[]) => {
             const isAgentSpeaking = speakers.some(s => !s.isLocal);
             if (isAgentSpeaking) setAgentState('speaking');
-            else if (agentState === 'speaking') setAgentState('idle'); // simple fallback
+            else if (agentState === 'speaking') setAgentState('idle');
         }
         room.on(RoomEvent.ActiveSpeakersChanged, onSpeakersChanged);
         return () => { room.off(RoomEvent.ActiveSpeakersChanged, onSpeakersChanged); }
@@ -99,65 +95,55 @@ function MainInterface() {
 
 
     return (
-        <div className="relative h-full w-full flex flex-col">
+        <div className="relative h-full w-full flex overflow-hidden">
             {/* Background elements */}
             <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px] opacity-20 pointer-events-none"></div>
             <div className="absolute inset-0 bg-radial-gradient from-transparent to-black pointer-events-none"></div>
 
-            {/* Header */}
-            <header className="flex justify-between items-center p-6 z-10 border-b border-white/5">
-                <div className="flex items-center gap-3">
-                    <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_#0f0]"></div>
-                    <h1 className="text-2xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
-                        {appConfig.title.toUpperCase()}
-                    </h1>
+            {/* Left Sidebar */}
+            <div className="relative z-20 h-full flex flex-col">
+                <Sidebar />
+                <div className="p-4 border-t border-white/10 bg-black/60 backdrop-blur w-80">
+                    <SessionMemory />
                 </div>
-                <AutonomyIndicator level={2} />
-            </header>
+            </div>
 
             {/* Main Stage */}
-            <main className="flex-1 flex flex-col items-center justify-center relative z-10 gap-8">
+            <div className="flex-1 flex flex-col relative z-10">
+                {/* Header */}
+                <header className="flex justify-between items-center p-6 border-b border-white/5">
+                    <div className="flex items-center gap-3">
+                        <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_#0f0]"></div>
+                        <h1 className="text-2xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
+                            {appConfig.title.toUpperCase()}
+                        </h1>
+                    </div>
+                    <div className="flex gap-4 items-center">
+                        <AgentState state={agentState} />
+                        <AutonomyIndicator level={2} />
+                    </div>
+                </header>
 
-                {/* Reactor */}
-                <div className="relative">
-                    <ArcReactor state={agentState} volume={vol || 0} />
-                </div>
+                {/* Center Visualizer */}
+                <main className="flex-1 flex flex-col items-center justify-center gap-8 relative">
+                    <div className="relative transform hover:scale-105 transition-transform duration-500">
+                        <ArcReactor state={agentState} volume={vol || 0} />
+                    </div>
 
-                {/* State Label */}
-                <AgentState state={agentState} />
+                    {/* Captions / Transcript Overlay could go here */}
+                    {agentState === 'speaking' && (
+                        <div className="absolute bottom-12 text-center w-2/3 text-lg font-mono text-cyan-300 drop-shadow-[0_0_5px_rgba(0,255,255,0.5)] bg-black/40 p-2 rounded backdrop-blur-sm">
+                            {/* Placeholder for real-time captions if available via stt.SpeechEvent */}
+                            [VOICE OUTPUT ACTIVE]
+                        </div>
+                    )}
+                </main>
 
-                {/* Status/Transcript Placeholder - could be expanded */}
-                <div className="h-12"></div>
-            </main>
-
-            {/* Footer / Controls */}
-            <footer className="p-6 flex justify-between items-end z-10">
-                {/* Session Memory */}
-                <SessionMemory />
-
-                {/* Local Controls */}
-                <LocalControls />
-            </footer>
-        </div>
-    )
-}
-
-function LocalControls() {
-    const { localParticipant } = useLocalParticipant();
-    const [micOn, setMicOn] = useState(true);
-
-    const toggleMic = () => {
-        const newState = !micOn;
-        setMicOn(newState);
-        localParticipant.setMicrophoneEnabled(newState);
-    }
-
-    return (
-        <div className="flex gap-4">
-            <button onClick={toggleMic} className={`p - 4 rounded - full border border - white / 20 transition - all ${micOn ? 'bg-primary/20 text-primary shadow-[0_0_15px_var(--primary)]' : 'bg-red-500/20 text-red-500'} `}>
-                {micOn ? <Mic /> : <MicOff />}
-            </button>
-            {/* Add more controls like Disconnect, Settings */}
+                {/* Footer Controls */}
+                <footer className="flex justify-center pb-0 z-20">
+                    <ControlGrid />
+                </footer>
+            </div>
         </div>
     )
 }
