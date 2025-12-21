@@ -31,6 +31,29 @@ class LocalWhisperSTT(stt.STT):
         self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
         logger.info("Faster-Whisper model loaded.")
 
+    async def _recognize_impl(self, buffer: stt.AudioBuffer, *, language: str | None = None, conn_options: dict | None = None):
+        # Merge frames if buffer has multiple, faster-whisper needs float32
+        # Data is Int16 typically in LiveKit
+        raw_data = b''
+        for frame in buffer: # AudioBuffer is iterable of AudioFrames
+             raw_data += frame.data.tobytes()
+
+        audio_int16 = np.frombuffer(raw_data, np.int16)
+        audio_float32 = audio_int16.astype(np.float32) / 32768.0
+
+        loop = asyncio.get_running_loop()
+        text = await loop.run_in_executor(None, self._transcribe_oneshot, audio_float32)
+        
+        return stt.SpeechEvent(
+            type=stt.SpeechEventType.FINAL_TRANSCRIPT,
+            alternatives=[stt.SpeechData(text=text, confidence=1.0, language="en")]
+        )
+
+    def _transcribe_oneshot(self, audio):
+        segments, _ = self.model.transcribe(audio, beam_size=5, language="en")
+        text = " ".join([segment.text for segment in segments]).strip()
+        return text
+
     def stream(self) -> "SpeechStream":
         return SpeechStream(self.model)
 
