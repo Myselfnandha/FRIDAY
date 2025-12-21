@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Database, FileTerminal } from 'lucide-react';
+import { Database } from 'lucide-react';
 import { useRoomContext } from '@livekit/components-react';
 import { RoomEvent } from 'livekit-client';
 

@@ -4,15 +4,25 @@ FROM python:3.11-slim-bookworm
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs
 
 # Create user
 RUN useradd -m -u 1000 user
 
 WORKDIR /app
 
-# Copy the entire working directory (excluding .dockerignore files)
+# Copy the entire working directory
 COPY --chown=user:user . .
+
+# Build Frontend
+WORKDIR /app/frontend_react
+RUN npm install
+RUN npm run build
 
 # Switch to backend directory where the python app lives
 WORKDIR /app/backend

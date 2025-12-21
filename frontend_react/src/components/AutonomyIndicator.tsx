@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, ShieldCheck, Lock, Unlock } from 'lucide-react';
+import { Lock, Unlock } from 'lucide-react';
 
 interface AutonomyProps {
     level: number; // 1-6

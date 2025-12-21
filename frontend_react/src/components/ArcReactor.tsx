@@ -9,7 +9,6 @@ export const ArcReactor: React.FC<ArcReactorProps> = ({ state, volume = 0 }) => 
     // Map state to colors/speeds
     const isSpeaking = state === 'speaking';
     const isThinking = state === 'thinking';
-    const isListening = state === 'listening';
 
     const coreColor = isThinking ? '#ff00ff' : (isSpeaking ? '#00d9ff' : '#0088aa');
     const scale = 1 + (isSpeaking ? volume * 0.5 : 0);

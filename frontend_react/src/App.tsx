@@ -1,17 +1,16 @@
-import { useEffect, useState, useRef } from 'react';
+```
+import { useEffect, useState } from 'react';
 import {
     LiveKitRoom,
     RoomAudioRenderer,
     StartAudio,
     useLocalParticipant,
     useRoomContext,
-    useConnectionState,
     useVoiceAssistant,
     useTrackVolume,
-    BarVisualizer,
 } from '@livekit/components-react';
-import { ConnectionState, RoomEvent, LocalParticipant, Track } from 'livekit-client';
-import { Mic, MicOff, Video, VideoOff, Settings, Minimize2, X, Send } from 'lucide-react';
+import { RoomEvent } from 'livekit-client';
+import { Mic, MicOff } from 'lucide-react';
 import { appConfig } from './app-config';
 import { ArcReactor } from './components/ArcReactor';
 import { AutonomyIndicator } from './components/AutonomyIndicator';
@@ -21,14 +20,13 @@ import { AgentState } from './components/AgentState';
 function App() {
     const [token, setToken] = useState("");
     const [url, setUrl] = useState("");
-    const [connected, setConnected] = useState(false);
 
     useEffect(() => {
         // Auto-connect flow
         const connect = async () => {
             try {
                 const storedUrl = localStorage.getItem('backend_url') || appConfig.defaultBackendUrl;
-                const res = await fetch(`${storedUrl}/api/token`);
+                const res = await fetch(`${ storedUrl } /api/token`);
                 const data = await res.json();
                 setToken(data.token);
                 setUrl(data.url);
@@ -57,8 +55,6 @@ function App() {
             connect={true}
             video={false}
             audio={true}
-            onConnected={() => setConnected(true)}
-            onDisconnected={() => setConnected(false)}
             className="h-screen w-screen bg-black overflow-hidden font-mono text-white"
         >
             <MainInterface />
@@ -159,7 +155,7 @@ function LocalControls() {
 
     return (
         <div className="flex gap-4">
-            <button onClick={toggleMic} className={`p-4 rounded-full border border-white/20 transition-all ${micOn ? 'bg-primary/20 text-primary shadow-[0_0_15px_var(--primary)]' : 'bg-red-500/20 text-red-500'}`}>
+            <button onClick={toggleMic} className={`p - 4 rounded - full border border - white / 20 transition - all ${ micOn ? 'bg-primary/20 text-primary shadow-[0_0_15px_var(--primary)]' : 'bg-red-500/20 text-red-500' } `}>
                 {micOn ? <Mic /> : <MicOff />}
             </button>
             {/* Add more controls like Disconnect, Settings */}

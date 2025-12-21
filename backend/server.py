@@ -7,12 +7,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="../frontend_react/dist", static_url_path="/")
 CORS(app)
 
 @app.route('/')
 def home():
-    return jsonify({"status": "Voice Assistant Backend Running", "endpoints": ["/token"]})
+    return app.send_static_file('index.html')
 
 @app.route('/api/token')
 def get_token():
