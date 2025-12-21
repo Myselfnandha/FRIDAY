@@ -17,6 +17,18 @@ class EdgeTTS(tts.TTS):
         self.default_voice = default_voice
         self.tamil_voice = tamil_voice
 
+    async def synthesize(self, text: str, *, conn_options: dict | None = None) -> "tts.ChunkedStream":
+        # For this simple implementation, we can reuse stream logic or just return a stream
+        # But 'synthesize' is usually for non-streaming single calls.
+        # However, the Agent usually calls 'stream'. 
+        # The Abstract Base Class 'TTS' requires 'synthesize' to be implemented.
+        
+        # We will wrap the streaming logic
+        stream = self.stream()
+        stream.push_text(text)
+        await stream.flush()
+        return stream
+
     def stream(self) -> "SynthesizeStream":
         return SynthesizeStream(self.default_voice, self.tamil_voice)
 
