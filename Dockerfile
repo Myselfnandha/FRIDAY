@@ -1,4 +1,5 @@
 FROM python:3.11-slim-bookworm
+ENV REBUILD_TRIGGER=3
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
