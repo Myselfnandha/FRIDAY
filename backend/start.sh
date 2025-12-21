@@ -4,5 +4,4 @@
 python server.py &
 
 # Start the main Friday Agent
-# Start the main Friday Agent with single worker (dev mode implies simplified runner)
-python agent.py dev
+python agent.py start
