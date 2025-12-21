@@ -215,7 +215,13 @@ class FridaySystem {
       const encoded = new TextEncoder().encode(payload);
       await this.room.localParticipant.publishData(encoded, { reliable: true });
     } catch (e) {
-      this.showToast("Transmission Error");
+      if (e.message && e.message.includes("publishData")) {
+          // Log but don't show toast for every minor data channel blip
+           console.warn("Minor transmission glitch", e);
+      } else {
+          this.showToast("Transmission Error");
+          console.error(e);
+      }
     }
   }
 

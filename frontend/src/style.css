@@ -10,7 +10,9 @@
   --font-tech: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
@@ -24,8 +26,11 @@ body {
 /* Background Effects */
 .bg-scanlines {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.1));
   background-size: 100% 4px;
   pointer-events: none;
   z-index: 0;
@@ -77,6 +82,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 15px;
+  min-height: 0;
+  /* Important for flex child with overflow */
 }
 
 .message {
@@ -86,6 +93,7 @@ body {
   border-radius: 4px;
   max-width: 90%;
 }
+
 .message.system {
   color: var(--text-dim);
   text-align: center;
@@ -94,12 +102,14 @@ body {
   width: 100%;
   max-width: 100%;
 }
+
 .message.user {
   align-self: flex-end;
   background: rgba(0, 217, 255, 0.1);
   border: 1px solid var(--primary-dim);
   color: var(--primary);
 }
+
 .message.assistant {
   align-self: flex-start;
   background: rgba(255, 255, 255, 0.05);
@@ -124,6 +134,7 @@ body {
   font-family: inherit;
   outline: none;
 }
+
 #command-input:focus {
   box-shadow: 0 0 10px var(--primary-dim);
 }
@@ -144,7 +155,7 @@ body {
 }
 
 .control-btn {
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid transparent;
   color: var(--text-dim);
   padding: 10px 0;
@@ -155,17 +166,25 @@ body {
   justify-content: center;
   align-items: center;
 }
+
 .control-btn:hover {
   color: var(--text-main);
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
 }
+
 .control-btn.active {
   color: var(--primary);
   border-color: var(--primary-dim);
   box-shadow: 0 0 10px var(--primary-dim) inset;
 }
-.control-btn.danger { color: var(--alert); }
-.control-btn.danger:hover { background: rgba(255, 68, 68, 0.2); }
+
+.control-btn.danger {
+  color: var(--alert);
+}
+
+.control-btn.danger:hover {
+  background: rgba(255, 68, 68, 0.2);
+}
 
 /* Main Stage */
 .main-stage {
@@ -186,8 +205,16 @@ body {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; text-shadow: 0 0 15px var(--primary); }
+
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 15px var(--primary);
+  }
 }
 
 /* Reactor Core */
@@ -206,6 +233,7 @@ body {
   border: 2px solid var(--primary);
   box-shadow: 0 0 10px var(--primary);
 }
+
 .reactor-ring.outer {
   width: 100%;
   height: 100%;
@@ -213,6 +241,7 @@ body {
   border-right-color: transparent;
   animation: spin 4s linear infinite;
 }
+
 .reactor-ring.inner {
   width: 70%;
   height: 70%;
@@ -230,6 +259,7 @@ body {
   opacity: 0.2;
   filter: blur(20px);
 }
+
 .core-circle {
   position: absolute;
   width: 30%;
@@ -245,15 +275,30 @@ body {
   background-color: var(--secondary);
   box-shadow: 0 0 30px var(--secondary);
 }
-.reactor-wrapper.listening .outer { animation-duration: 2s; }
 
-@keyframes spin { 100% { transform: rotate(360deg); } }
-@keyframes spin-reverse { 100% { transform: rotate(-360deg); } }
+.reactor-wrapper.listening .outer {
+  animation-duration: 2s;
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-reverse {
+  100% {
+    transform: rotate(-360deg);
+  }
+}
 
 /* Modules Overlay */
 .modules-overlay {
   position: absolute;
-  top: 50px; left: 50px; right: 50px; bottom: 50px;
+  top: 50px;
+  left: 50px;
+  right: 50px;
+  bottom: 50px;
   background: rgba(10, 15, 20, 0.95);
   border: 1px solid var(--primary);
   backdrop-filter: blur(15px);
@@ -262,7 +307,10 @@ body {
   flex-direction: column;
   z-index: 100;
 }
-.modules-overlay.hidden { display: none; }
+
+.modules-overlay.hidden {
+  display: none;
+}
 
 .modules-header {
   display: flex;
@@ -272,9 +320,18 @@ body {
   border-bottom: 1px solid #333;
   padding-bottom: 10px;
 }
-.modules-header h2 { color: var(--primary); margin: 0; }
 
-.modules-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+.modules-header h2 {
+  color: var(--primary);
+  margin: 0;
+}
+
+.modules-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
 .tab-btn {
   flex: 1;
   background: transparent;
@@ -283,6 +340,7 @@ body {
   padding: 10px;
   cursor: pointer;
 }
+
 .tab-btn.active {
   border-color: var(--primary);
   color: var(--primary);
@@ -298,90 +356,109 @@ body {
 
 .module-action-btn {
   padding: 20px;
-  background: rgba(0,0,0,0.4);
+  background: rgba(0, 0, 0, 0.4);
   border: 1px solid var(--primary-dim);
   color: var(--primary);
   cursor: pointer;
   border-radius: 8px;
   transition: all 0.2s;
 }
-.module-action-btn:hover { background: var(--primary-dim); color: #fff; }
+
+.module-action-btn:hover {
+  background: var(--primary-dim);
+  color: #fff;
+}
 
 /* Personality Form Styles */
 .personality-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 15px;
-    grid-column: span 2; /* Make them wider if grid allows, or wrap in a div */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 15px;
+  grid-column: span 2;
+  /* Make them wider if grid allows, or wrap in a div */
 }
+
 /* Override grid for personality */
 .modules-content.personality-mode {
-    display: flex;
-    flex-direction: column;
-    max-width: 600px;
-    margin: 0 auto;
-    width: 100%;
+  display: flex;
+  flex-direction: column;
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .personality-label {
-    color: var(--primary);
-    font-size: 0.9rem;
-    letter-spacing: 1px;
+  color: var(--primary);
+  font-size: 0.9rem;
+  letter-spacing: 1px;
 }
 
-.personality-input, .personality-select, .personality-textarea {
-    background: rgba(0,0,0,0.5);
-    border: 1px solid var(--primary-dim);
-    color: #fff;
-    padding: 10px;
-    border-radius: 4px;
-    font-family: var(--font-tech);
+.personality-input,
+.personality-select,
+.personality-textarea {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--primary-dim);
+  color: #fff;
+  padding: 10px;
+  border-radius: 4px;
+  font-family: var(--font-tech);
 }
-.personality-input:focus, .personality-select:focus, .personality-textarea:focus {
-    outline: none;
-    border-color: var(--primary);
+
+.personality-input:focus,
+.personality-select:focus,
+.personality-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
 }
 
 .personality-slider {
-    -webkit-appearance: none;
-    width: 100%;
-    height: 4px;
-    background: #333;
-    border-radius: 2px;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  background: #333;
+  border-radius: 2px;
 }
+
 .personality-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
-    background: var(--primary);
-    border-radius: 50%;
-    cursor: pointer;
-    box-shadow: 0 0 10px var(--primary);
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--primary);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 10px var(--primary);
 }
 
 .save-btn {
-    margin-top: 20px;
-    background: var(--primary);
-    color: #000;
-    border: none;
-    padding: 15px;
-    font-weight: bold;
-    cursor: pointer;
-    border-radius: 4px;
+  margin-top: 20px;
+  background: var(--primary);
+  color: #000;
+  border: none;
+  padding: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 4px;
 }
+
 .save-btn:hover {
-    background: #fff;
-    box-shadow: 0 0 20px var(--primary);
+  background: #fff;
+  box-shadow: 0 0 20px var(--primary);
 }
 
 /* Toast */
 .toast-container {
   position: absolute;
-  top: 20px; left: 50%;
+  top: 20px;
+  left: 50%;
   transform: translateX(-50%);
-  display: flex; flex-direction: column; gap: 10px; align-items: center; z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  z-index: 200;
 }
+
 .toast {
   background: rgba(0, 0, 0, 0.8);
   border: 1px solid var(--primary);
@@ -392,9 +469,23 @@ body {
   box-shadow: 0 0 15px rgba(0, 217, 255, 0.2);
   animation: fade-in-out 3s forwards;
 }
+
 @keyframes fade-in-out {
-  0% { opacity: 0; transform: translateY(-10px); }
-  10% { opacity: 1; transform: translateY(0); }
-  90% { opacity: 1; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  10% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  90% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
 }
