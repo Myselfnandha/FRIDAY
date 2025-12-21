@@ -2,8 +2,9 @@ import logging
 import os
 import json
 from dotenv import load_dotenv
+
+from livekit.agents.pipeline import VoicePipelineAgent
 from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli, llm
-from livekit.agents.voice import Agent, AgentSession
 from livekit.plugins import google
 from memory import MemoryManager
 from local_stt import LocalWhisperSTT
@@ -11,8 +12,9 @@ from edge_tts_plugin import EdgeTTS
 from system_tools import SystemControl
 from custom_vad import WebRTCVAD
 from brain import CognitiveEngine
-import openwakeword # For future local wake word refinement if needed
+import openwakeword
 from livekit import rtc
+import asyncio
 
 # Additional imports for Video
 from livekit.agents import utils
@@ -20,40 +22,40 @@ from livekit.agents import utils
 load_dotenv()
 logger = logging.getLogger("alan-agent")
 
-class AssistantFnc:
+class AssistantFnc(llm.FunctionContext):
     def __init__(self):
         super().__init__()
         self.memory = MemoryManager()
         self.brain = CognitiveEngine(self.memory)
         self.sys_control = SystemControl()
 
-    @llm.function_tool(description="Open a generic application on Windows (e.g., 'Calculator', 'Chrome', 'Spotify').")
+    @llm.ai_callable(description="Open a generic application on Windows (e.g., 'Calculator', 'Chrome', 'Spotify').")
     def open_app_windows(self, app_name: str):
         return self.sys_control.open_windows_app(app_name)
 
-    @llm.function_tool(description="Close a generic application on Windows (e.g., 'Calculator', 'Chrome').")
+    @llm.ai_callable(description="Close a generic application on Windows (e.g., 'Calculator', 'Chrome').")
     def close_app_windows(self, app_name: str):
         return self.sys_control.close_windows_app(app_name)
 
-    @llm.function_tool(description="Open an app on connected Android Phone. specific the full package name (e.g., 'com.whatsapp', 'com.instagram.android', 'com.google.android.youtube').")
+    @llm.ai_callable(description="Open an app on connected Android Phone. specific the full package name (e.g., 'com.whatsapp', 'com.instagram.android', 'com.google.android.youtube').")
     def open_app_android(self, package_name: str):
         return self.sys_control.open_android_app(package_name)
 
-    @llm.function_tool(description="Close/Kill an app on connected Android Phone using package name.")
+    @llm.ai_callable(description="Close/Kill an app on connected Android Phone using package name.")
     def close_app_android(self, package_name: str):
         return self.sys_control.close_android_app(package_name)
 
-    @llm.function_tool(description="Ask Google Assistant on Android to perform a system task (e.g., 'Turn on Flashlight', 'Set alarm for 7AM', 'Turn off WiFi').")
+    @llm.ai_callable(description="Ask Google Assistant on Android to perform a system task (e.g., 'Turn on Flashlight', 'Set alarm for 7AM', 'Turn off WiFi').")
     def ask_android_assistant(self, command: str):
         return self.sys_control.command_android_assistant(command)
 
-    @llm.function_tool(description="Save important information or context to long-term memory for future retrieval.")
+    @llm.ai_callable(description="Save important information or context to long-term memory for future retrieval.")
     def save_memory(self, text: str):
         """Save text to memory."""
         self.memory.add_memory(text)
         return "Memory saved successfully."
 
-    @llm.function_tool(description="Search and recall information from long-term memory based on a query.")
+    @llm.ai_callable(description="Search and recall information from long-term memory based on a query.")
     def recall_memory(self, query: str):
         """Search memory for query."""
         results = self.memory.search_memory(query)
@@ -61,7 +63,7 @@ class AssistantFnc:
             return f"Memory Recall Results: {'; '.join(results)}"
         return "No relevant memories found."
 
-    @llm.function_tool(description="Signal that a task was completed and provide feedback to self-learning engine.")
+    @llm.ai_callable(description="Signal that a task was completed and provide feedback to self-learning engine.")
     def task_feedback(self, goal: str, was_successful: bool, notes: str):
         self.brain.learn_outcome(goal, "Executed Plan", was_successful, notes)
         return "Feedback recorded."
@@ -86,28 +88,33 @@ async def entrypoint(ctx: JobContext):
         "Otherwise, be responsive but concise."
     )
 
-    fnc_ctx = AssistantFnc()
-    
-    # Create Agent (Logic & Tools)
-    agent = Agent(
-        instructions=system_instructions,
-        tools=llm.find_function_tools(fnc_ctx),
+    initial_ctx = llm.ChatContext().append(
+        role="system",
+        text=system_instructions
     )
 
-    # Create Agent Session (Pipeline: VAD -> STT -> LLM -> TTS)
-    session = AgentSession(
+    fnc_ctx = AssistantFnc()
+    
+    # Create VoicePipelineAgent (Modern SDK)
+    agent = VoicePipelineAgent(
         vad=WebRTCVAD(aggressiveness=3), # Lightweight VAD
         stt=LocalWhisperSTT(model_name="tiny.en"), # Use Tiny model (70MB RAM)
         llm=google.LLM(model="gemini-1.5-flash"),
         tts=EdgeTTS(default_voice="en-US-BrianNeural", tamil_voice="ta-IN-ValluvarNeural"),
+        chat_ctx=initial_ctx,
+        fnc_ctx=fnc_ctx,
     )
 
     # Start the agent session with the room
-    # Start the agent session with the room
-    await session.start(room=ctx.room, participant=agent)
+    # Check if participant is available (user)
+    # Usually we wait for participant or just start. 
+    # VoicePipelineAgent.start(room, participant)
+    # We can get the participant from the room if available or just wait.
+    # Typically:
+    await agent.start(ctx.room, participant=None) # Passing None might wait for first participant or handle room event
 
     # Say initial greeting
-    await session.say("Systems online. Alan is ready to serve.", allow_interruptions=True)
+    await agent.say("Systems online. Alan is ready to serve.", allow_interruptions=True)
 
     @ctx.room.on("data_received")
     def on_data(dp: rtc.DataPacket):
@@ -128,28 +135,16 @@ async def entrypoint(ctx: JobContext):
                 logger.info(f"Processing command: {text_command}")
 
                 # Inject user message into chat context
-                # Using agent.chat_ctx if available, otherwise trying session.chat_ctx logic
-                # For this specific Agent structure, context management might be on 'agent' 
-                # but 'llm' and 'say' are definitely on 'session'.
-                
                 user_msg = llm.ChatMessage(role=llm.ChatRole.USER, content=text_command)
-                
-                # Append to context
                 agent.chat_ctx.append(user_msg)
                 
-                # Trigger response
-                import asyncio
-                async def process_text_command():
-                    # Use Session's LLM and Say methods
-                    if hasattr(session, 'llm'):
-                        stream = session.llm.chat(chat_ctx=agent.chat_ctx)
-                        await session.say(stream)
-                    else:
-                        logger.warning("Session has no LLM attribute, cannot process command.")
-                
-                asyncio.create_task(process_text_command())
+                # Trigger response via agent's LLM
+                asyncio.create_task(agent.say(agent.llm.chat(chat_ctx=agent.chat_ctx)))
                 
             except Exception as e:
                 logger.error(f"Failed to process data command: {e}")
+
 if __name__ == "__main__":
+    # Disable preloading to save memory/startup time
+    # Set max_workers to 1 if using 'start' command, though 'dev' implied 1.
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
