@@ -31,7 +31,7 @@ class LocalWhisperSTT(stt.STT):
         self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
         logger.info("Faster-Whisper model loaded.")
 
-    async def _recognize_impl(self, buffer: stt.AudioBuffer, *, language: str | None = None, conn_options: dict | None = None):
+    async def _recognize_impl(self, buffer, *, language: str | None = None, conn_options: dict | None = None):
         # Merge frames if buffer has multiple, faster-whisper needs float32
         # Data is Int16 typically in LiveKit
         raw_data = b''

@@ -1,9 +1,5 @@
 import { Room, RoomEvent, VideoPresets, LocalParticipant } from 'livekit-client';
 import { createIcons, icons } from 'lucide';
-import { inject } from '@vercel/analytics';
-
-// Init Analytics
-inject();
 
 // Init Icons
 createIcons({ icons });
