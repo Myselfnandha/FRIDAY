@@ -28,7 +28,7 @@ git rm --cached -r **\.env 2>nul
 echo.
 echo Staging and Committing all changes...
 git add .
-git commit -m "Update UI layout, and authentication"
+git commit -m "Update"
 
 echo.
 echo Configuring Hugging Face Remote...
