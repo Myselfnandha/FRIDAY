@@ -10,6 +10,7 @@ edge-tts
 pydub
 flask
 flask-cors
+gunicorn
 AppOpener
 pure-python-adb
 opencv-python

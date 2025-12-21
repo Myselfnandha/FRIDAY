@@ -1,6 +1,15 @@
+```python
+import logging
+import os
+import json
+import warnings
+# Suppress pydub audioop deprecation warning
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydub")
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="livekit.agents.utils.http_server")
 
+from dotenv import load_dotenv
+from livekit.agents.pipeline import VoicePipelineAgent
 from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli, llm
-from livekit.agents.voice import Agent, AgentSession
 from livekit.plugins import google
 from memory import MemoryManager
 from local_stt import LocalWhisperSTT
@@ -11,8 +20,6 @@ from brain import CognitiveEngine
 import openwakeword
 from livekit import rtc
 import asyncio
-import logging
-from dotenv import load_dotenv
 
 load_dotenv()
 logger = logging.getLogger("alan-agent")
@@ -74,24 +81,28 @@ async def entrypoint(ctx: JobContext):
         "Capabilities: Memory, System Control, Learning. "
     )
 
+    initial_ctx = llm.ChatContext().append(
+        role="system",
+        text=system_instructions
+    )
+
     fnc_ctx = AssistantFnc()
     
-    agent = Agent(
-        instructions=system_instructions,
-        tools=llm.find_function_tools(fnc_ctx),
-    )
-
-    session = AgentSession(
-        vad=WebRTCVAD(aggressiveness=3), 
-        stt=LocalWhisperSTT(model_name="tiny.en"), 
+    # Modern VoicePipelineAgent
+    agent = VoicePipelineAgent(
+        vad=WebRTCVAD(aggressiveness=3),
+        stt=LocalWhisperSTT(model_name="tiny.en"),
         llm=google.LLM(model="gemini-1.5-flash"),
         tts=EdgeTTS(default_voice="en-US-BrianNeural", tamil_voice="ta-IN-ValluvarNeural"),
+        chat_ctx=initial_ctx,
+        fnc_ctx=fnc_ctx,
     )
 
-    # CRITICAL FIX: await the start method
-    await session.start(room=ctx.room, participant=agent)
+    # Start the agent (Pipeline handles loop)
+    # Passing None for participant to wait for first user
+    await agent.start(ctx.room, participant=None)
 
-    await session.say("Systems online. Alan is ready to serve.", allow_interruptions=True)
+    await agent.say("Systems online. Alan is ready to serve.", allow_interruptions=True)
 
     @ctx.room.on("data_received")
     def on_data(dp: rtc.DataPacket):
@@ -109,12 +120,16 @@ async def entrypoint(ctx: JobContext):
                 
                 logger.info(f"Processing command: {text_command}")
                 
-                # Manually handle chat context for AgentSession
-                user_msg = llm.ChatMessage(role=llm.ChatRole.USER, content=text_command)
-                agent.chat_ctx.append(user_msg)
-                
-                asyncio.create_task(session.say(session.llm.chat(chat_ctx=agent.chat_ctx)))
-                
+                # Verify chat_ctx exists on the agent pipeline
+                if hasattr(agent, 'chat_ctx'):
+                    user_msg = llm.ChatMessage(role=llm.ChatRole.USER, content=text_command)
+                    agent.chat_ctx.append(user_msg)
+                    
+                    # Use agent.say to speak the response from LLM
+                    asyncio.create_task(agent.say(agent.llm.chat(chat_ctx=agent.chat_ctx)))
+                else:
+                    logger.warning("VoicePipelineAgent missing chat_ctx")
+
             except Exception as e:
                 logger.error(f"Failed to process command: {e}")
 
