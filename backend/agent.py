@@ -104,7 +104,7 @@ async def entrypoint(ctx: JobContext):
 
     # Start the agent session with the room
     # Start the agent session with the room
-    session.start(room=ctx.room, participant=agent)
+    await session.start(room=ctx.room, participant=agent)
 
     # Say initial greeting
     await session.say("Systems online. Alan is ready to serve.", allow_interruptions=True)
