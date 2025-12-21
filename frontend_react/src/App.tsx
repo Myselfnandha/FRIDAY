@@ -26,7 +26,7 @@ function App() {
         const connect = async () => {
             try {
                 const storedUrl = localStorage.getItem('backend_url') || appConfig.defaultBackendUrl;
-                const res = await fetch(`${ storedUrl } /api/token`);
+                const res = await fetch(`${storedUrl}/api/token`);
                 const data = await res.json();
                 setToken(data.token);
                 setUrl(data.url);
