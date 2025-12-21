@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 from dotenv import load_dotenv
 from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli, llm
 from livekit.agents.voice import Agent, AgentSession
@@ -106,10 +107,6 @@ async def entrypoint(ctx: JobContext):
 
     # Say initial greeting
     await session.say("Systems online. Alan is ready to serve.", allow_interruptions=True)
-
-import json
-
-# ... (rest of the file until on_data)
 
     @ctx.room.on("data_received")
     def on_data(dp: rtc.DataPacket):
