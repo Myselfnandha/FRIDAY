@@ -60,7 +60,7 @@ class LocalWhisperSTT(stt.STT):
 class SpeechStream(stt.SpeechStream):
     def __init__(self, model):
         super().__init__()
-        self.model = model
+        self._model = model
         self.audio_frames = []
         self._closed = False
         self._sample_rate = 16000 # Whisper expects 16k
@@ -107,6 +107,6 @@ class SpeechStream(stt.SpeechStream):
         await super().aclose(wait)
 
     def _transcribe(self, audio):
-        segments, _ = self.model.transcribe(audio, beam_size=5, language="en")
+        segments, _ = self._model.transcribe(audio, beam_size=5, language="en")
         text = " ".join([segment.text for segment in segments]).strip()
         return text

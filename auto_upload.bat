@@ -20,12 +20,6 @@ if "%HF_TOKEN%"=="" (
 )
 
 echo.
-echo Cleaning up sensitive files from git tracking...
-git rm --cached -r .env 2>nul
-git rm --cached -r backend\.env 2>nul
-git rm --cached -r **\.env 2>nul
-
-echo.
 echo Staging and Committing all changes...
 git add .
 git commit -m "Update"
