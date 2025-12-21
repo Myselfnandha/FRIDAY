@@ -28,7 +28,7 @@ class LocalWhisperSTT(stt.STT):
         
         logger.info(f"Loading Faster-Whisper model '{model_name}' on {device} ({compute_type})...")
         # Run in a thread or separate process ideally, but here we load once.
-        self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
+        self._model = WhisperModel(model_name, device=device, compute_type=compute_type)
         logger.info("Faster-Whisper model loaded.")
 
     async def _recognize_impl(self, buffer, *, language: str | None = None, conn_options: dict | None = None):
@@ -50,12 +50,12 @@ class LocalWhisperSTT(stt.STT):
         )
 
     def _transcribe_oneshot(self, audio):
-        segments, _ = self.model.transcribe(audio, beam_size=5, language="en")
+        segments, _ = self._model.transcribe(audio, beam_size=5, language="en")
         text = " ".join([segment.text for segment in segments]).strip()
         return text
 
     def stream(self) -> "SpeechStream":
-        return SpeechStream(self.model)
+        return SpeechStream(self._model)
 
 class SpeechStream(stt.SpeechStream):
     def __init__(self, model):
