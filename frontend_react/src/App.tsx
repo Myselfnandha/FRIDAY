@@ -1,4 +1,3 @@
-```
 import { useEffect, useState } from 'react';
 import {
     LiveKitRoom,
@@ -155,7 +154,7 @@ function LocalControls() {
 
     return (
         <div className="flex gap-4">
-            <button onClick={toggleMic} className={`p - 4 rounded - full border border - white / 20 transition - all ${ micOn ? 'bg-primary/20 text-primary shadow-[0_0_15px_var(--primary)]' : 'bg-red-500/20 text-red-500' } `}>
+            <button onClick={toggleMic} className={`p - 4 rounded - full border border - white / 20 transition - all ${micOn ? 'bg-primary/20 text-primary shadow-[0_0_15px_var(--primary)]' : 'bg-red-500/20 text-red-500'} `}>
                 {micOn ? <Mic /> : <MicOff />}
             </button>
             {/* Add more controls like Disconnect, Settings */}
