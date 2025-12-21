@@ -15,10 +15,11 @@ The system follows a Client-Server Microservices architecture:
 graph TD
     User((User)) -->|Voice/Text| Frontend
     
-    subgraph Frontend Logic [Vanilla JS Client]
-        UI[Glassmorphism UI]
-        LK[LiveKit Client SDK]
-        Vis[Reactor Visualizer]
+    subgraph Frontend Logic [React Client]
+        UI[React UI Components]
+        Config[app-config.ts]
+        LK[LiveKit Components]
+        Vis[Arc Reactor Visualizer]
     end
     
     subgraph Cloud/Server [Hugging Face Spaces]
@@ -39,90 +40,94 @@ graph TD
 ## 3. Technology Stack
 
 ### 3.1 Frontend (User Interface)
-*   **Framework**: Vanilla HTML5 / CSS3 / JavaScript (ES6+).
+*   **Framework**: React (Node.js + PNPM).
+*   **Base Template**: LiveKit React App Template (Next.js/Vite).
+*   **Configuration**: Centralized control via `app-config.ts`.
 *   **Dependencies**: 
-    *   `livekit-client`: For WebRTC audio/video and real-time data channels.
-    *   `lucide`: For iconography.
-*   **Styling**: Pure CSS with Variables, CSS Grid/Flexbox, Keyframe Animations (Neon glow, Reactor spin).
-*   **Deployment**: Integrated into the backend Flask host (Static file serving) or standalone Vercel (optional).
+    *   `livekit-client` & `@livekit/components-react`: For WebRTC and UI components.
+    *   `framer-motion`: For high-quality animations.
+*   **Styling**: TailwindCSS + Custom CSS for "Glassmorphism" and Sci-Fi effects.
+*   **Assets**: SVG/PNG for logos, specifically the "Arc Reactor" visual.
 
 ### 3.2 Backend (AI Core)
 *   **Runtime**: Python 3.11+.
 *   **Framework**: `livekit-agents` (Orchestration), `flask` (Token API).
 *   **STT (Speech-to-Text)**: `faster-whisper` (running locally on CPU with `int8` quantization for speed/low-memory).
-*   **LLM (Intelligence)**: `google-generativeai` (Gemini 1.5 Flash). Selected for high speed, large context window, and free tier availability.
-*   **TTS (Text-to-Speech)**: `edge-tts` (Microsoft Edge Online TTS). High-quality neural voices without local GPU requirement.
-*   **Database/Memory**: `mem0ai` backed by `chromadb` (Vector Store) for semantic search and long-term context.
+*   **LLM (Intelligence)**: `google-generativeai` (Gemini 1.5 Flash).
+*   **TTS (Text-to-Speech)**: `edge-tts`.
+*   **Database/Memory**: `mem0ai` backed by `chromadb`.
 *   **Deployment**: Dockerized application running on Hugging Face Spaces.
 
 ### 3.3 Connectivity & Protocols
 *   **WebRTC**: Primary transport for low-latency Audio and Video.
-*   **Data Channels**: Used for sending text commands (System instructions, Personality updates) and receiving events (UI status updates) instantly.
-*   **ADB (Android Debug Bridge)**: For controlling Android devices connected via USB/TCP to the host.
-*   **AppOpener**: For Windows application automation.
+*   **Data Channels**: Used for sending JSON commands and receiving status updates.
+*   **System Control**: ADB (Android) and AppOpener (Windows).
 
 ---
 
 ## 4. Key Modules & Features
 
-### 4.1 Frontend Modules
-*   **Neural Reactor**: A central visual component that animates based on voice activity (VAD events), simulating a "living" core.
-*   **Comm Link**: Manages connection states, handling reconnects and "Sleeping" server states via a configurable Backend URL.
-*   **Personality Matrix**: A UI panel allowing users to dynamically reconfigure the AI's Identity, Voice Style, Emotion, and Strictness at runtime using "System Instruction" injection.
-*   **Chat Interface**: Real-time log of the conversation, styled as a sci-fi terminal.
+### 4.1 Frontend Modules & UI Components
+*   **Visual Identity**:
+    *   **Hero**: Custom "Arc Reactor" animation replacing default logos.
+    *   **Branding**: "Friday Voice Agent" (No "Powered by LiveKit" text).
+*   **Control Center (`app-config.ts`)**:
+    *   Configurable Page Title, Company Name, and Description.
+*   **Agent State UI**:
+    *   Visual indicators for: **Listening**, **Thinking**, **Speaking**, **Idle**.
+*   **Autonomy Level Indicator**:
+    *   A dedicated gauge (1–6) representing the AI's operational autonomy (ALAN Core Design).
+*   **Session Memory Panel**:
+    *   Displays the last recognized User Intent or Task.
+*   **Standard Controls**:
+    *   Mic/Camera Toggles, Screen Share, Disconnect.
+    *   Chat Panel (History + Typing).
 
 ### 4.2 Backend Modules
 *   **`agent.py` (The Supervisor)**:
-    *   Manages the LifeCycle of the AI session.
-    *   Integrates VAD, STT, LLM, and TTS capabilities.
-    *   Handles incoming Data Packets (`json` commands) and routes them to logic.
+    *   Manages the AI LifeCycle.
+    *   Routes Data Packets (Personality updates, System commands).
 *   **`local_stt.py` (Hearing)**:
-    *   Custom implementation of LiveKit's STT interface using `faster-whisper`.
-    *   Optimized with `_recognize_impl` single-shot logic and `int8` compute type.
+    *   Custom Faster-Whisper implementation (`int8`, `_recognize_impl`).
 *   **`brain.py` (Cognitive Engine)**:
-    *   **Planning**: Deconstructs complex user goals into steps.
-    *   **Learning**: Saves successful task execution patterns to memory.
-    *   **Language Detection**: Heuristic routing for English/Tamil/Tanglish processing.
+    *   Planning & Learning logic.
+    *   Language Style detection.
 *   **`memory.py` (Long-Term Storage)**:
-    *   Wrapper around `mem0`.
-    *   Stores "User Facts" and "System Skills" in a vector database (`memory.db`).
+    *   Mem0 + ChromaDB integration.
 *   **`system_tools.py` (The Hands)**:
-    *   **Windows**: Opens/Closes apps (`AppOpener`).
-    *   **Android**: Uses `pure-python-adb` to launch apps, kill packages, or inject text commands into Google Assistant.
+    *   Windows/Android automation tools.
 
 ---
 
 ## 5. Data Flow & Logic
 
 1.  **Initialization**:
-    *   Frontend requests Access Token from Flask API (`/api/token`).
-    *   Connects to LiveKit Cloud Room.
-    *   Backend Agent joins the same room.
+    *   Frontend reads `app-config.ts` for UI setup.
+    *   Requests Token -> Connects to LiveKit Room.
 
 2.  **Voice Interaction Loop**:
     *   **User Speaks** -> WebRTC Stream -> Backend.
-    *   **VAD** detects speech activity.
-    *   **STT** transcribes audio to text (Faster Whisper).
-    *   **Agent** appends text to Context.
-    *   **LLM** (Gemini) generates response + decides if **Tools** are needed.
-    *   **TTS** streams audio response back to Frontend.
+    *   **VAD** detects speech -> Frontend updates State to "Listening".
+    *   **STT** transcribes -> Frontend shows user text.
+    *   **Agent** processes -> Frontend updates State to "Thinking".
+    *   **LLM** responds -> Frontend updates State to "Speaking".
+    *   **TTS** streams audio -> Frontend visualizer reacts.
 
 3.  **Command Execution**:
-    *   If LLM calls a tool (e.g., `open_app_android`), the `AssistantFnc` class executes the corresponding Python function in `system_tools.py`.
-    *   Results are fed back to LLM for final confirmation ("Opening WhatsApp for you, Sir").
+    *   LLM triggers tools -> Backend executes -> Results sent to Frontend via Data Channel (updating Memory Panel).
 
 ---
 
 ## 6. Implementation & Deployment Status
 
-*   **Repository**: GitHub (Synced via automated script).
-*   **CI/CD**: `auto_upload.bat` script handles sensitive file cleaning, git operations, and force-pushing to Hugging Face.
+*   **Repository**: GitHub.
+*   **CI/CD**: `auto_upload.bat` script.
 *   **Current State**:
-    *   Frontend: **Stable** (Vanilla JS, Settings/Personality UI active).
-    *   Backend: **Stable** (STT Fixed, Memory integration active).
+    *   Backend: **Stable** (Python/LiveKit Agents).
+    *   Frontend: **Migration Required** (Transitioning from Vanilla JS back to React/Next.js to support advanced component features).
     *   Deployment: **Active** on Hugging Face Spaces.
 
 ## 7. Future Roadmap
-*   **Vision Capabilities**: Enable camera stream processing for "Sight" (Gemini Vision).
-*   **Local LLM Support**: Switch to `Ollama` for fully offline functioning.
-*   **Advanced IoT**: Home Assistant integration via generic webhooks.
+*   **Vision**: Camera inputs.
+*   **Ollama**: Local LLM.
+*   **Home Automation**: IoT integration.

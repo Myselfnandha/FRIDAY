@@ -5,7 +5,7 @@
             "destination": "/api/index.py"
         }
     ],
-    "buildCommand": "cd frontend && npm install && npm run build",
-    "outputDirectory": "frontend/dist",
+    "buildCommand": "cd frontend_react && npm install && npm run build",
+    "outputDirectory": "frontend_react/dist",
     "framework": "vite"
 }

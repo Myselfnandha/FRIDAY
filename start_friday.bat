@@ -15,7 +15,7 @@ echo Starting FRIDAY Voice Agent...
 start "FRIDAY Agent" cmd /k "cd backend && call %VENV_DIR%\Scripts\activate && python agent.py dev"
 
 echo Starting FRIDAY Frontend...
-start "FRIDAY Frontend" cmd /k "cd frontend && npm run dev"
+start "FRIDAY Frontend" cmd /k "cd frontend_react && npm run dev"
 
 echo System Startup Initiated.
 echo 1. Token Server (Port 5000)
