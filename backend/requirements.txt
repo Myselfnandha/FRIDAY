@@ -1,7 +1,7 @@
 # --- CORE ---
 python-dotenv
-numpy
 requests
+numpy
 langdetect
 
 # --- LIVEKIT ---
@@ -9,14 +9,7 @@ livekit==0.8.0
 livekit-agents==1.3.9
 livekit-plugins-google
 
-
-# --- AI / BRAIN ---
-google-generativeai
-mem0ai
-chromadb
-
 # --- AUDIO ---
-faster-whisper
 edge-tts
 pydub
 webrtcvad-wheels
@@ -25,10 +18,3 @@ webrtcvad-wheels
 flask
 flask-cors
 gunicorn
-
-# --- ANDROID / OS ---
-AppOpener
-pure-python-adb
-
-# --- VISION (ONLY IF REALLY NEEDED) ---
-pillow
