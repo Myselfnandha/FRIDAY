@@ -2,7 +2,7 @@ FROM python:3.11-slim-bookworm
 ENV PYTHONUNBUFFERED=1
 
 # =========================
-# System deps
+# System dependencies
 # =========================
 RUN apt-get update && apt-get install -y \
     ffmpeg \
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # =========================
-# User
+# User (HF best practice)
 # =========================
 RUN useradd -m -u 1000 user
 WORKDIR /app
@@ -25,15 +25,22 @@ COPY --chown=user:user backend ./backend
 COPY --chown=user:user requirements.txt ./backend/requirements.txt
 
 # =========================
-# Backend deps
+# Python dependencies (HF-SAFE ORDER)
 # =========================
 WORKDIR /app/backend
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
-      torch torchvision torchaudio \
-      --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -r requirements.txt
 
+# 1️⃣ Upgrade pip (alone)
+RUN pip install --no-cache-dir --upgrade pip
+
+# 2️⃣ Install Torch FIRST (PINNED, CPU-only)
+RUN pip install --no-cache-dir \
+    torch==2.1.2+cpu \
+    torchvision==0.16.2+cpu \
+    torchaudio==2.1.2+cpu \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# 3️⃣ Install remaining deps (isolated)
+RUN pip install --no-cache-dir --no-build-isolation -r requirements.txt
 
 # =========================
 # Runtime
