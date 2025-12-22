@@ -1,24 +1,33 @@
-# --- Core ---
+# --- CORE ---
 python-dotenv
-requests
 numpy
+requests
 langdetect
 
-# --- LiveKit (pin + wheels only) ---
+# --- LIVEKIT ---
 livekit==0.8.0
-livekit-agents==1.3.9
+livekit-agents==0.6.3
 livekit-plugins-google
 
-# --- Force binary deps (CRITICAL) ---
-grpcio==1.59.3
-protobuf==4.25.1
-cryptography==41.0.7
+# --- AI / BRAIN ---
+google-generativeai
+mem0ai
+chromadb
 
-# --- Audio (pure python / wheels) ---
+# --- AUDIO ---
+faster-whisper
 edge-tts
 pydub
+webrtcvad-wheels
 
-# --- Server ---
+# --- SERVER ---
 flask
 flask-cors
 gunicorn
+
+# --- ANDROID / OS ---
+AppOpener
+pure-python-adb
+
+# --- VISION (ONLY IF REALLY NEEDED) ---
+pillow
