@@ -31,11 +31,11 @@ COPY --chown=user:user requirements.txt ./backend/requirements.txt
 WORKDIR /app/backend
 
 # 1️⃣ Install Torch ONLY (pinned, CPU)
-RUN python -m pip install --no-cache-dir \
-    torch==2.1.2+cpu \
-    torchvision==0.16.2+cpu \
-    torchaudio==2.1.2+cpu \
-    --index-url https://download.pytorch.org/whl/cpu
+RUN python -m pip install \
+    --no-cache-dir \
+    --only-binary=:all: \
+    -r requirements.txt
+
 
 # 2️⃣ Install remaining deps
 RUN python -m pip install -vvv --no-cache-dir --no-build-isolation -r requirements.txt

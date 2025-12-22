@@ -4,15 +4,19 @@ requests
 numpy
 langdetect
 
-# --- LiveKit ---
+# --- LiveKit (pin + wheels only) ---
 livekit==0.8.0
 livekit-agents==1.3.9
 livekit-plugins-google
 
-# --- Audio (light) ---
+# --- Force binary deps (CRITICAL) ---
+grpcio==1.59.3
+protobuf==4.25.1
+cryptography==41.0.7
+
+# --- Audio (pure python / wheels) ---
 edge-tts
 pydub
-webrtcvad-wheels
 
 # --- Server ---
 flask
