@@ -7,7 +7,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from dotenv import load_dotenv
-from livekit.agents.pipeline import VoicePipelineAgent
+from livekit.agents import VoicePipelineAgent
 
 from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli, llm
 from livekit import rtc
