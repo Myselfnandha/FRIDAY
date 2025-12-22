@@ -5,7 +5,8 @@ import {
   useRoomContext,
   useVoiceAssistant,
   useTrackVolume,
-} from '@livekit/components-react/dist/index.mjs';
+} from '@livekit/components-react';
+
 
 import { RoomEvent } from 'livekit-client';
 
