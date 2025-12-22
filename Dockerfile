@@ -1,9 +1,8 @@
 FROM python:3.11-slim-bookworm
-ENV REBUILD_TRIGGER=3
 ENV PYTHONUNBUFFERED=1
 
 # =========================
-# System dependencies
+# System deps
 # =========================
 RUN apt-get update && apt-get install -y \
     ffmpeg \
@@ -14,45 +13,27 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # =========================
-# Node.js (Frontend build)
-# =========================
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs
-
-# =========================
-# User (HF best practice)
+# User
 # =========================
 RUN useradd -m -u 1000 user
-
 WORKDIR /app
 
 # =========================
-# Copy project
+# Copy backend only
 # =========================
-COPY --chown=user:user . .
+COPY --chown=user:user backend ./backend
+COPY --chown=user:user requirements.txt ./backend/requirements.txt
 
 # =========================
-# Frontend build
-# =========================
-WORKDIR /app/frontend_react
-RUN npm install
-RUN npm run build || (echo "FRONTEND BUILD FAILED" && exit 1)
-
-
-# =========================
-# Backend setup
+# Backend deps
 # =========================
 WORKDIR /app/backend
-
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
       torch torchvision torchaudio \
       --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
-# =========================
-# Permissions
-# =========================
 RUN chmod +x start.sh
 
 # =========================
@@ -63,5 +44,4 @@ ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH
 
 EXPOSE 7860
-
 CMD ["./start.sh"]
