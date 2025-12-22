@@ -1,20 +1,20 @@
-# --- CORE ---
+# --- Core ---
 python-dotenv
 requests
 numpy
 langdetect
 
-# --- LIVEKIT ---
+# --- LiveKit ---
 livekit==0.8.0
 livekit-agents==1.3.9
 livekit-plugins-google
 
-# --- AUDIO ---
+# --- Audio (lightweight only) ---
 edge-tts
 pydub
 webrtcvad-wheels
 
-# --- SERVER ---
+# --- Server ---
 flask
 flask-cors
 gunicorn
