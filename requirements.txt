@@ -1,33 +1,27 @@
-# --- CORE ---
+# =========================
+# Core utilities
+# =========================
 python-dotenv
-numpy
 requests
+numpy
 langdetect
 
-# --- LIVEKIT ---
-livekit==0.8.0
-livekit-agents==0.6.3
+# =========================
+# LiveKit (MODERN, COMPATIBLE)
+# =========================
+livekit>=1.0.19,<2
+livekit-agents==1.3.9
 livekit-plugins-google
 
-# --- AI / BRAIN ---
-google-generativeai
-mem0ai
-chromadb
-
-# --- AUDIO ---
-faster-whisper
+# =========================
+# Audio / TTS (HF-safe)
+# =========================
 edge-tts
 pydub
-webrtcvad-wheels
 
-# --- SERVER ---
+# =========================
+# Web server
+# =========================
 flask
 flask-cors
 gunicorn
-
-# --- ANDROID / OS ---
-AppOpener
-pure-python-adb
-
-# --- VISION (ONLY IF REALLY NEEDED) ---
-pillow
