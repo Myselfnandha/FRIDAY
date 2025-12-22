@@ -38,7 +38,7 @@ RUN python -m pip install --no-cache-dir \
     --index-url https://download.pytorch.org/whl/cpu
 
 # 2️⃣ Install remaining deps
-RUN python -m pip install --no-cache-dir --no-build-isolation -r requirements.txt
+RUN python -m pip install -vvv --no-cache-dir --no-build-isolation -r requirements.txt
 
 # =========================
 # Runtime
