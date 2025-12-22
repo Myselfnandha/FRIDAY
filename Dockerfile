@@ -1,8 +1,9 @@
 FROM python:3.11-slim-bookworm
 ENV PYTHONUNBUFFERED=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # =========================
-# System dependencies
+# System deps
 # =========================
 RUN apt-get update && apt-get install -y \
     ffmpeg \
@@ -13,7 +14,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # =========================
-# User (HF best practice)
+# User
 # =========================
 RUN useradd -m -u 1000 user
 WORKDIR /app
@@ -25,22 +26,19 @@ COPY --chown=user:user backend ./backend
 COPY --chown=user:user requirements.txt ./backend/requirements.txt
 
 # =========================
-# Python dependencies (HF-SAFE ORDER)
+# Backend deps (HF SAFE)
 # =========================
 WORKDIR /app/backend
 
-# 1️⃣ Upgrade pip (alone)
-RUN pip install --no-cache-dir --upgrade pip
-
-# 2️⃣ Install Torch FIRST (PINNED, CPU-only)
-RUN pip install --no-cache-dir \
+# 1️⃣ Install Torch ONLY (pinned, CPU)
+RUN python -m pip install --no-cache-dir \
     torch==2.1.2+cpu \
     torchvision==0.16.2+cpu \
     torchaudio==2.1.2+cpu \
     --index-url https://download.pytorch.org/whl/cpu
 
-# 3️⃣ Install remaining deps (isolated)
-RUN pip install --no-cache-dir --no-build-isolation -r requirements.txt
+# 2️⃣ Install remaining deps
+RUN python -m pip install --no-cache-dir --no-build-isolation -r requirements.txt
 
 # =========================
 # Runtime
@@ -50,5 +48,4 @@ ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH
 
 EXPOSE 7860
-
 CMD ["bash", "start.sh"]
