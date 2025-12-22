@@ -34,7 +34,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
       --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
-RUN chmod +x start.sh
 
 # =========================
 # Runtime
@@ -44,4 +43,5 @@ ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH
 
 EXPOSE 7860
-CMD ["./start.sh"]
+
+CMD ["bash", "start.sh"]
