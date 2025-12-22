@@ -36,7 +36,8 @@ COPY --chown=user:user . .
 # =========================
 WORKDIR /app/frontend_react
 RUN npm install
-RUN npm run build
+RUN npm run build || (echo "FRONTEND BUILD FAILED" && exit 1)
+
 
 # =========================
 # Backend setup
