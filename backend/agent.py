@@ -8,6 +8,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from dotenv import load_dotenv
 from livekit.agents.pipeline import VoicePipelineAgent
+
 from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli, llm
 from livekit import rtc
 from livekit.rtc import VideoStream
@@ -21,8 +22,6 @@ from custom_vad import WebRTCVAD
 from core.brain.pipeline import respond
 from core.memory.memory_manager import MemoryManager
 
-import openwakeword
-import sounddevice as sd
 import numpy as np
 
 # =========================

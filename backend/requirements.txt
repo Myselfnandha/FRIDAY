@@ -1,21 +1,33 @@
-livekit-agents>=0.12.1
-livekit>=1.0.0
-livekit-plugins-google
+# --- CORE ---
 python-dotenv
+numpy
+requests
+langdetect
+
+# --- LIVEKIT ---
+livekit==0.8.0
+livekit-agents==0.6.3
+livekit-plugins-google
+
+# --- AI / BRAIN ---
 google-generativeai
 mem0ai
 chromadb
+
+# --- AUDIO ---
 faster-whisper
 edge-tts
 pydub
+webrtcvad-wheels
+
+# --- SERVER ---
 flask
 flask-cors
 gunicorn
+
+# --- ANDROID / OS ---
 AppOpener
 pure-python-adb
-opencv-python
+
+# --- VISION (ONLY IF REALLY NEEDED) ---
 pillow
-openwakeword
-langdetect
-webrtcvad-wheels
-requests

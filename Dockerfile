@@ -1,42 +1,62 @@
 FROM python:3.11-slim-bookworm
 ENV REBUILD_TRIGGER=3
+ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies
+# =========================
+# System dependencies
+# =========================
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     build-essential \
     curl \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js
+# =========================
+# Node.js (Frontend build)
+# =========================
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs
 
-# Create user
+# =========================
+# User (HF best practice)
+# =========================
 RUN useradd -m -u 1000 user
 
 WORKDIR /app
 
-# Copy the entire working directory
+# =========================
+# Copy project
+# =========================
 COPY --chown=user:user . .
 
-# Build Frontend
+# =========================
+# Frontend build
+# =========================
 WORKDIR /app/frontend_react
 RUN npm install
 RUN npm run build
 
-# Switch to backend directory where the python app lives
+# =========================
+# Backend setup
+# =========================
 WORKDIR /app/backend
 
-# Install dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir \
+      torch torchvision torchaudio \
+      --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
-# Fix permissions
+# =========================
+# Permissions
+# =========================
 RUN chmod +x start.sh
 
-# Switch to user
+# =========================
+# Runtime
+# =========================
 USER user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH
