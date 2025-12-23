@@ -1,37 +1,26 @@
 #!/bin/bash
 
-# Define paths
-ENV_FILE="backend/.env"
+# Auto Upload Script for Project ALAN
 
-echo "Reading configuration from $ENV_FILE..."
+echo "🚀 Starting Deployment..."
 
-# Check if .env exists
-if [ ! -f "$ENV_FILE" ]; then
-    echo "Error: $ENV_FILE not found."
-    exit 1
-fi
-
-# Export variables from .env (ignoring comments)
-export $(grep -v '^#' "$ENV_FILE" | xargs)
-
-# Check if HF_TOKEN is set
-if [ -z "$HF_TOKEN" ]; then
-    echo "Error: HF_TOKEN not found in $ENV_FILE"
-    exit 1
-fi
-
-echo "Staging and Committing all changes..."
+# 1. Commit changes locally
 git add .
-git commit -m "Update from Alan Agent"
+git commit -m "Update Project ALAN: Frontend & Backend"
 
-echo "Configuring Hugging Face Remote..."
-git remote remove space 2>/dev/null
-git remote add space https://nandhaalagesan248:$HF_TOKEN@huggingface.co/spaces/nandhaalagesan248/FRIDAY
-
-echo "Pushing to Hugging Face Space (Force Push)..."
-git push --force space main
-
-echo "Pushing to GitHub (Origin)..."
+# 2. Push Frontend (Monorepo root) to GitHub
+echo "Pushing to GitHub (Frontend/Monorepo)..."
 git push origin main
 
-echo "Done."
+# 3. Push Backend to Hugging Face Spaces
+# We need to sync the backend_alan folder to the HF remote
+echo "Pushing backend_alan to Hugging Face Spaces..."
+
+# If HF remote is not set, instructions:
+# git remote add hf https://huggingface.co/spaces/Myselfnandha/ALAN-V2
+
+# We push only the backend_alan folder content to the HF root
+# Using git subtree is safest
+git subtree push --prefix backend_alan hf main
+
+echo "✅ Deployment Complete!"
