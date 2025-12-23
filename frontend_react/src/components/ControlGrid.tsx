@@ -44,11 +44,13 @@ export const ControlGrid = () => {
 }
 
 const ControlButton = ({ icon, label, active, warn, onClick }: any) => (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center gap-2 p-3 rounded border border-white/10 uppercase text-[10px] tracking-widest transition-all
+    <button onClick={onClick} className={`flex flex-col items-center justify-center gap-2 p-3 aspect-square rounded-none border border-white/10 uppercase text-[10px] tracking-widest transition-all
          ${active ? 'bg-primary/20 text-primary border-primary/50 shadow-[0_0_10px_rgba(0,217,255,0.2)]' : 'bg-transparent text-gray-500 hover:text-white hover:bg-white/5'}
          ${warn ? 'hover:bg-red-500/20 hover:text-red-500 hover:border-red-500' : ''}
     `}>
         {icon}
-        <span>{label}</span>
+        <span className="sr-only">{label}</span>
+        {/* Hidden label for TARS minimal aesthetic, or keep it small? Let's hide text for pure blocky feel or keep it very small. Plan implies square buttons. Let's keep label but maybe smaller? */}
+        <span className="text-[8px]">{label}</span>
     </button>
 );
