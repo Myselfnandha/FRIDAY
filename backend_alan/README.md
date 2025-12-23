@@ -1,11 +1,12 @@
 ---
-title: FRIDAY ALAN V2
-emoji: ⚡
-colorFrom: blue
-colorTo: purple
-sdk: docker
+title: "FRIDAY-ALAN-V2"
+emoji: "⚡"
+colorFrom: "blue"
+colorTo: "purple"
+sdk: "docker"
+app_port: 7860
 pinned: false
-license: mit
+license: "mit"
 ---
 
 # FRIDAY (Project ALAN) - Backend

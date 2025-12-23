@@ -2,4 +2,3 @@ livekit-agents
 livekit-plugins-google
 google-generativeai
 python-dotenv
-openai
