@@ -2,7 +2,7 @@ import os
 import logging
 from dotenv import load_dotenv
 
-from livekit import agents
+from livekit import agents, rtc
 from livekit.agents import Agent, AgentSession, AgentServer
 from livekit.plugins.google import beta as google_beta
 
@@ -29,7 +29,7 @@ class AlanAgent(Agent):
                 "Automatically switch language based on user input."
             ),
             llm=google_beta.realtime.RealtimeModel(
-                model="models/gemini-1.5-flash",
+                model="models/gemini-2.0-flash-exp",
                 api_key=GOOGLE_API_KEY,
                 temperature=0.6,
             ),
@@ -58,7 +58,7 @@ async def entrypoint(ctx: agents.JobContext):
     )
 
     @ctx.room.on("data_received")
-    def on_data_received(data: agents.rtc.DataPacket):
+    def on_data_received(data: rtc.DataPacket):
         try:
             payload = data.data.decode("utf-8")
             logger.info(f"Received data: {payload}")
