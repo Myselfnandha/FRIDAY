@@ -15,9 +15,11 @@ WORKDIR /app
 COPY --chown=user:user requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Grant ownership of the entire app directory to user
-# This is crucial for SQLite to create journal/lock files
-RUN chown -R user:user /app
+# Copy source code
+COPY --chown=user:user . .
+
+# Grant full permissions to app directory for SQLite (DB + Journal files)
+RUN chmod -R 777 /app
 
 # Switch to user
 USER user
