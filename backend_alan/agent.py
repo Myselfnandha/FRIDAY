@@ -84,5 +84,9 @@ async def entrypoint(ctx: JobContext):
     await agent.run()
 
 if __name__ == "__main__":
-    server = AgentServer()
-    agents.cli.run_app(server, worker_entrypoint=entrypoint)
+    agents.cli.run_app(
+        agents.WorkerOptions(
+            entrypoint=entrypoint,
+            prewarm=prewarm,
+        ),
+    )
