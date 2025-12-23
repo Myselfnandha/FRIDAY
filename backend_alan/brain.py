@@ -1,13 +1,14 @@
 import logging
 import json
 import os
-import google.generativeai as genai
+import os
+# import google.generativeai as genai # Deprecated
 from enum import Enum
 from memory import AlanMemory
 from dotenv import load_dotenv
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 logger = logging.getLogger("alan.brain")
 
@@ -16,6 +17,7 @@ class AgentRole(Enum):
     WORKER = "worker"
     REVIEWER = "reviewer"
 
+class AlanBrain:
     def __init__(self):
         self.mode = "fast" 
         self.memory = AlanMemory()
@@ -51,14 +53,21 @@ class AgentRole(Enum):
         
         # 4. Action (Generate Response)
         # Using standard Gemini Flash for the "Thinking" / Text-Chat layer
+        # 4. Action (Generate Response)
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            chat = model.start_chat(history=[])
-            response = chat.send_message(f"{system_prompt}\n\nUser: {user_input}")
+            from google import genai
+            client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+            
+            response = client.models.generate_content(
+                model="gemini-2.0-flash-exp",
+                contents=f"{system_prompt}\n\nUser: {user_input}"
+            )
+            
+            text_response = response.text
             
             # Log output context
-            self.memory.log_interaction("assistant", response.text)
-            return response.text
+            self.memory.log_interaction("assistant", text_response)
+            return text_response
         except Exception as e:
             logger.error(f"Brain freeze: {e}")
             return "I am unable to process that request safely explicitly."
