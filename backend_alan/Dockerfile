@@ -17,7 +17,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code with ownership
 COPY --chown=user:user . .
-RUN chown -R user:user /app
+# Pre-create database file with permissions
+RUN touch /app/alan_memory.db && \
+    chown user:user /app/alan_memory.db && \
+    chmod 664 /app/alan_memory.db
 
 # Switch to user
 USER user
