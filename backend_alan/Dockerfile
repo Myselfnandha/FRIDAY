@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code with ownership
 COPY --chown=user:user . .
+RUN chown -R user:user /app
 
 # Switch to user
 USER user
