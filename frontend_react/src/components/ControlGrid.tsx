@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
-import { Mic, MicOff, Video, VideoOff, Monitor, Settings, Power } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Monitor, PhoneOff, ChevronDown } from 'lucide-react';
 
 export const ControlGrid = () => {
     const { localParticipant } = useLocalParticipant();
@@ -38,21 +38,38 @@ export const ControlGrid = () => {
     }
 
     return (
-        <div className="flex items-center justify-center gap-4 p-3 bg-black/60 border border-white/10 backdrop-blur-md rounded-full shadow-2xl mb-8">
-            <ControlButton icon={micOn ? <Mic size={20} /> : <MicOff size={20} />} active={micOn} onClick={toggleMic} />
-            <ControlButton icon={camOn ? <Video size={20} /> : <VideoOff size={20} />} active={camOn} onClick={toggleCam} />
+        <div className="flex items-center justify-center gap-3 p-2 bg-black/60 border border-white/10 backdrop-blur-md rounded-full shadow-2xl mb-8">
+            {/* Mic with Config */}
+            <div className="flex items-center bg-white/5 rounded-full pl-1 pr-2 gap-1 group">
+                <ControlButton icon={micOn ? <Mic size={18} /> : <MicOff size={18} />} active={micOn} onClick={toggleMic} />
+                <div className="text-gray-500 hover:text-white cursor-pointer p-1"><ChevronDown size={14} /></div>
+            </div>
+
+            {/* Cam with Config */}
+            <div className="flex items-center bg-white/5 rounded-full pl-1 pr-2 gap-1 group">
+                <ControlButton icon={camOn ? <Video size={18} /> : <VideoOff size={18} />} active={camOn} onClick={toggleCam} />
+                <div className="text-gray-500 hover:text-white cursor-pointer p-1"><ChevronDown size={14} /></div>
+            </div>
+
             <ControlButton icon={<Monitor size={20} />} active={screenOn} onClick={toggleScreen} />
+
             <div className="w-px h-6 bg-white/20 mx-2"></div>
-            <ControlButton icon={<Settings size={20} />} onClick={() => alert("Settings Panel")} />
-            <ControlButton icon={<Power size={20} />} warn onClick={disconnect} />
+
+            {/* End Call Pill */}
+            <button
+                onClick={disconnect}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-full transition-all font-bold text-xs tracking-wider"
+            >
+                <PhoneOff size={16} />
+                <span>END CALL</span>
+            </button>
         </div>
     )
 }
 
-const ControlButton = ({ icon, active, warn, onClick }: any) => (
+const ControlButton = ({ icon, active, onClick }: any) => (
     <button onClick={onClick} className={`p-3 rounded-full transition-all duration-300
-         ${active ? 'bg-primary text-black shadow-[0_0_15px_var(--primary)]' : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'}
-         ${warn ? '!bg-red-500/20 !text-red-500 hover:!bg-red-500 hover:!text-white' : ''}
+         ${active ? 'bg-primary text-black shadow-[0_0_15px_var(--primary)]' : 'bg-transparent text-gray-300 hover:bg-white/10 hover:text-white'}
     `}>
         {icon}
     </button>

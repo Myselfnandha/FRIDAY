@@ -57,6 +57,16 @@ async def entrypoint(ctx: agents.JobContext):
         agent=AlanAgent(),
     )
 
+    @ctx.room.on("data_received")
+    def on_data_received(data: agents.rtc.DataPacket):
+        try:
+            payload = data.data.decode("utf-8")
+            logger.info(f"Received data: {payload}")
+            # JSON parsing logic here if needed
+            # For now, just confirming pipeline works
+        except Exception as e:
+            logger.error(f"Failed to process data: {e}")
+
 
 # =========================
 # MAIN

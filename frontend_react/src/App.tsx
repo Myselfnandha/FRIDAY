@@ -5,15 +5,19 @@ import {
   useRoomContext,
   useVoiceAssistant,
   useTrackVolume,
+  useLocalParticipant,
+  VideoTrack
 } from '@livekit/components-react';
 
 
-import { RoomEvent } from 'livekit-client';
+import { RoomEvent, Track } from 'livekit-client';
 
 import { appConfig } from './app-config';
 import { ArcReactor } from './components/ArcReactor';
 import { AutonomyIndicator } from './components/AutonomyIndicator';
 import { ControlGrid } from './components/ControlGrid';
+import { ChatInput } from './components/ChatInput';
+import { IntroPage } from './components/IntroPage';
 
 import { useCaptions } from './components/useCaptions';
 
@@ -55,6 +59,16 @@ export default function App() {
     );
   }
 
+  if (!connected) {
+    return (
+      <IntroPage onConnect={async () => {
+        const ctx = new AudioContext();
+        if (ctx.state === 'suspended') await ctx.resume();
+        setConnected(true);
+      }} />
+    )
+  }
+
   return (
     <LiveKitRoom
       token={token}
@@ -67,24 +81,7 @@ export default function App() {
       className="h-screen w-screen bg-black text-white font-mono overflow-hidden"
     >
       <MainInterface />
-
       <RoomAudioRenderer />
-
-      {/* AUDIO UNLOCK GATE */}
-      {!connected && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85">
-          <button
-            onClick={async () => {
-              const ctx = new AudioContext();
-              if (ctx.state === 'suspended') await ctx.resume();
-              setConnected(true);
-            }}
-            className="px-8 py-4 bg-primary text-black font-bold tracking-widest rounded hover:bg-white transition"
-          >
-            INITIALIZE NEURAL LINK
-          </button>
-        </div>
-      )}
     </LiveKitRoom>
   );
 }
@@ -97,10 +94,33 @@ function MainInterface() {
   const room = useRoomContext();
   const { state, audioTrack } = useVoiceAssistant();
   const volume = useTrackVolume(audioTrack);
+  const { localParticipant } = useLocalParticipant();
 
   const caption = useCaptions();
   const [agentState, setAgentState] =
     useState<'idle' | 'listening' | 'thinking' | 'speaking'>('idle');
+
+  const [localVideoTrack, setLocalVideoTrack] = useState<Track | undefined>(undefined);
+
+  useEffect(() => {
+    if (localParticipant) {
+      const updateTrack = () => {
+        const trackPub = localParticipant.getTrackPublication(Track.Source.Camera);
+        setLocalVideoTrack(trackPub?.track);
+      }
+      // Listen to changes
+      localParticipant.on(RoomEvent.LocalTrackPublished, updateTrack);
+      localParticipant.on(RoomEvent.LocalTrackUnpublished, updateTrack);
+      // Initial check
+      updateTrack();
+
+      return () => {
+        localParticipant.off(RoomEvent.LocalTrackPublished, updateTrack);
+        localParticipant.off(RoomEvent.LocalTrackUnpublished, updateTrack);
+      }
+    }
+  }, [localParticipant]);
+
 
   useEffect(() => {
     if (state) setAgentState(state as any);
@@ -129,28 +149,42 @@ function MainInterface() {
       </div>
 
       {/* Center Visuals */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-12 z-0 scale-110">
-        <div className="relative">
-          <ArcReactor state={agentState} volume={volume || 0} />
+      <div className="flex-1 flex w-full items-center justify-center p-8 gap-8">
+        {/* Arc Reactor - shifts to left if video is present? Or just side-by-side */}
+        <div className={`flex flex-col items-center justify-center transition-all duration-500 ${localVideoTrack ? 'w-1/2' : 'w-full'}`}>
+          <div className="scale-125 mb-8">
+            <ArcReactor state={agentState} volume={volume || 0} />
+          </div>
+
+          <div className="space-y-2 text-center">
+            <div className="text-xl font-light tracking-wide text-white/90">
+              {agentState === 'listening' && "I'm listening..."}
+              {agentState === 'thinking' && "Processing..."}
+              {agentState === 'speaking' && "Alan is speaking"}
+              {agentState === 'idle' && "Waiting for command"}
+            </div>
+            {caption && (
+              <div className="text-primary/70 max-w-xl text-center mx-auto mt-4 text-md font-mono">
+                "{caption}"
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="space-y-2 text-center">
-          <div className="text-2xl font-light tracking-wide text-white/90">
-            {agentState === 'listening' && "I'm listening..."}
-            {agentState === 'thinking' && "Processing..."}
-            {agentState === 'speaking' && "Alan is speaking"}
-            {agentState === 'idle' && "Waiting for command"}
-          </div>
-          {caption && (
-            <div className="text-primary/70 max-w-xl text-center mx-auto mt-4 text-lg font-mono">
-              "{caption}"
+        {/* Camera Feed (Right Side) */}
+        {localVideoTrack && (
+          <div className="w-1/2 h-[60vh] bg-black/50 border border-white/10 rounded-2xl overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] animate-in fade-in slide-in-from-right-10">
+            <VideoTrack trackRef={{ participant: localParticipant, source: Track.Source.Camera }} className="w-full h-full object-cover" />
+            <div className="absolute top-4 left-4 text-xs font-mono bg-black/60 px-2 py-1 rounded text-white/70">
+              CAMERA FEED
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom Controls */}
       <div className="mb-8 z-10 w-full flex flex-col items-center gap-4">
+        <ChatInput />
         <ControlGrid />
       </div>
     </div>
