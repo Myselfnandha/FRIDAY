@@ -6,18 +6,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+# Create user first
+RUN useradd -m -u 1000 user
+
 WORKDIR /app
 
-# Copy requirements first
-COPY requirements.txt .
+# Copy requirements
+COPY --chown=user:user requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code
-COPY . .
+# Copy source code with ownership
+COPY --chown=user:user . .
 
-# Create user to run as non-root (HF Security)
-RUN useradd -m -u 1000 user
-User user
+# Switch to user
+USER user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH
 
