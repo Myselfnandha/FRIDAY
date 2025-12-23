@@ -17,10 +17,10 @@ git push origin main
 echo "Pushing backend_alan to Hugging Face Spaces..."
 
 # If HF remote is not set, instructions:
-# git remote add hf https://huggingface.co/spaces/Myselfnandha/ALAN-V2
+# git remote add space https://huggingface.co/spaces/Myselfnandha/ALAN-V2
 
 # We push only the backend_alan folder content to the HF root
 # Using git subtree is safest
-git subtree push --prefix backend_alan hf main
+git subtree push --prefix backend_alan space main
 
 echo "✅ Deployment Complete!"
