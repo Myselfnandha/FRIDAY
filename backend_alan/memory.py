@@ -7,7 +7,7 @@ from datetime import datetime
 logger = logging.getLogger("alan.memory")
 
 class AlanMemory:
-    def __init__(self, db_path="alan_memory.db"):
+    def __init__(self, db_path="/tmp/alan_memory.db"):
         self.db_path = db_path
         self._init_db()
         
