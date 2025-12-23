@@ -63,7 +63,7 @@ export function ALANInterface() {
     }, [room]);
 
     return (
-        <div className="relative h-full w-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-black to-black text-white overflow-hidden flex flex-col items-center justify-between">
+        <div className="relative h-full w-full bg-transparent text-white overflow-hidden flex flex-col items-center justify-between">
 
             {/* Top Bar */}
             <div className="w-full p-6 flex justify-between items-center z-10">
