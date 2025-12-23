@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
-import { Mic, MicOff, Video, VideoOff, Monitor, Settings, Power, X } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Monitor, Settings, Power } from 'lucide-react';
 
 export const ControlGrid = () => {
     const { localParticipant } = useLocalParticipant();
@@ -27,30 +27,33 @@ export const ControlGrid = () => {
         localParticipant.setScreenShareEnabled(newState);
     }
 
-    const disconnect = () => {
-        room.disconnect();
-        window.location.reload(); // Simple way to reset state
+    const disconnect = async () => {
+        try {
+            await room.disconnect();
+        } catch (e) {
+            console.error("Disconnect error:", e);
+        } finally {
+            window.location.reload();
+        }
     }
 
     return (
-        <div className="grid grid-cols-5 gap-3 p-4 bg-black/40 border-t border-white/10 backdrop-blur w-full max-w-3xl rounded-t-xl mb-0">
-            <ControlButton icon={micOn ? <Mic /> : <MicOff />} label="VOICE" active={micOn} onClick={toggleMic} />
-            <ControlButton icon={camOn ? <Video /> : <VideoOff />} label="VISION" active={camOn} onClick={toggleCam} />
-            <ControlButton icon={<Monitor />} label="SCREEN" active={screenOn} onClick={toggleScreen} />
-            <ControlButton icon={<Settings />} label="CONFIG" active={false} onClick={() => alert("Settings Panel")} />
-            <ControlButton icon={<Power />} label="ABORT" active={false} warn onClick={disconnect} />
+        <div className="flex items-center justify-center gap-4 p-3 bg-black/60 border border-white/10 backdrop-blur-md rounded-full shadow-2xl mb-8">
+            <ControlButton icon={micOn ? <Mic size={20} /> : <MicOff size={20} />} active={micOn} onClick={toggleMic} />
+            <ControlButton icon={camOn ? <Video size={20} /> : <VideoOff size={20} />} active={camOn} onClick={toggleCam} />
+            <ControlButton icon={<Monitor size={20} />} active={screenOn} onClick={toggleScreen} />
+            <div className="w-px h-6 bg-white/20 mx-2"></div>
+            <ControlButton icon={<Settings size={20} />} onClick={() => alert("Settings Panel")} />
+            <ControlButton icon={<Power size={20} />} warn onClick={disconnect} />
         </div>
     )
 }
 
-const ControlButton = ({ icon, label, active, warn, onClick }: any) => (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center gap-2 p-3 aspect-square rounded-none border border-white/10 uppercase text-[10px] tracking-widest transition-all
-         ${active ? 'bg-primary/20 text-primary border-primary/50 shadow-[0_0_10px_rgba(0,217,255,0.2)]' : 'bg-transparent text-gray-500 hover:text-white hover:bg-white/5'}
-         ${warn ? 'hover:bg-red-500/20 hover:text-red-500 hover:border-red-500' : ''}
+const ControlButton = ({ icon, active, warn, onClick }: any) => (
+    <button onClick={onClick} className={`p-3 rounded-full transition-all duration-300
+         ${active ? 'bg-primary text-black shadow-[0_0_15px_var(--primary)]' : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'}
+         ${warn ? '!bg-red-500/20 !text-red-500 hover:!bg-red-500 hover:!text-white' : ''}
     `}>
         {icon}
-        <span className="sr-only">{label}</span>
-        {/* Hidden label for TARS minimal aesthetic, or keep it small? Let's hide text for pure blocky feel or keep it very small. Plan implies square buttons. Let's keep label but maybe smaller? */}
-        <span className="text-[8px]">{label}</span>
     </button>
 );

@@ -13,13 +13,9 @@ import { RoomEvent } from 'livekit-client';
 import { appConfig } from './app-config';
 import { ArcReactor } from './components/ArcReactor';
 import { AutonomyIndicator } from './components/AutonomyIndicator';
-import { SessionMemory } from './components/SessionMemory';
-import { AgentState } from './components/AgentState';
-import { Sidebar } from './components/Sidebar';
 import { ControlGrid } from './components/ControlGrid';
 
 import { useCaptions } from './components/useCaptions';
-import { useHotword } from './components/controls/useHotword.ts';
 
 /* =========================
    APP ROOT
@@ -66,7 +62,6 @@ export default function App() {
       connect={connected}
       audio
       video={false}
-      adaptiveStream
       dynacast
       publishDefaults={{ audioPreset: 'speech', red: false }}
       className="h-screen w-screen bg-black text-white font-mono overflow-hidden"
@@ -118,59 +113,45 @@ function MainInterface() {
       setAgentState(speakers.some(s => !s.isLocal) ? 'speaking' : 'idle');
     };
     room.on(RoomEvent.ActiveSpeakersChanged, fn);
-    return () => room.off(RoomEvent.ActiveSpeakersChanged, fn);
+    return () => { room.off(RoomEvent.ActiveSpeakersChanged, fn); };
   }, [room]);
 
-  // HOTWORD: "Alan"
-  useHotword(() => {
-    console.log('Hotword detected: Alan');
-  });
-
   return (
-    <div className="relative h-full w-full flex">
-      {/* Sidebar */}
-      <div className="z-20 flex flex-col w-80 bg-black/70 backdrop-blur">
-        <Sidebar />
-        <SessionMemory />
+    <div className="relative h-full w-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-black to-black text-white overflow-hidden flex flex-col items-center justify-between">
+
+      {/* Top Bar */}
+      <div className="w-full p-6 flex justify-between items-center z-10">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+          <span className="text-sm font-mono tracking-widest text-primary/80">ALAN SYSTEM ONLINE</span>
+        </div>
+        <AutonomyIndicator level={2} />
       </div>
 
-      {/* Main */}
-      <div className="flex-1 flex flex-col relative">
-        {/* Header */}
-        <header className="flex justify-between items-center p-6 border-b border-white/10">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            {appConfig.title.toUpperCase()}
-          </h1>
-          <div className="flex items-center gap-4">
-            <AgentState state={agentState} />
-            <AutonomyIndicator level={2} />
-          </div>
-        </header>
+      {/* Center Visuals */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-12 z-0 scale-110">
+        <div className="relative">
+          <ArcReactor state={agentState} volume={volume || 0} />
+        </div>
 
-        {/* Center */}
-        <main className="flex-1 flex flex-col items-center justify-center relative">
-          <div
-            className={`transition-all duration-300 ${
-              agentState === 'speaking'
-                ? 'drop-shadow-[0_0_25px_#0ff]'
-                : 'opacity-80'
-            }`}
-          >
-            <ArcReactor state={agentState} volume={volume || 0} />
+        <div className="space-y-2 text-center">
+          <div className="text-2xl font-light tracking-wide text-white/90">
+            {agentState === 'listening' && "I'm listening..."}
+            {agentState === 'thinking' && "Processing..."}
+            {agentState === 'speaking' && "Alan is speaking"}
+            {agentState === 'idle' && "Waiting for command"}
           </div>
-
-          {/* CAPTIONS */}
           {caption && (
-            <div className="absolute bottom-16 w-3/4 text-center text-cyan-300 bg-black/50 p-3 rounded backdrop-blur">
-              {caption}
+            <div className="text-primary/70 max-w-xl text-center mx-auto mt-4 text-lg font-mono">
+              "{caption}"
             </div>
           )}
-        </main>
+        </div>
+      </div>
 
-        {/* Footer */}
-        <footer className="p-4 flex justify-center">
-          <ControlGrid />
-        </footer>
+      {/* Bottom Controls */}
+      <div className="mb-8 z-10 w-full flex flex-col items-center gap-4">
+        <ControlGrid />
       </div>
     </div>
   );
