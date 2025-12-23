@@ -86,7 +86,7 @@ async def entrypoint(ctx: JobContext):
 if __name__ == "__main__":
     agents.cli.run_app(
         agents.WorkerOptions(
-            entrypoint=entrypoint,
-            prewarm=prewarm,
+            entrypoint_fnc=entrypoint,
+            prewarm_fnc=prewarm,
         ),
     )
