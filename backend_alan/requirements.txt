@@ -5,4 +5,5 @@ google-genai
 python-dotenv
 av
 openai
-livekit-plugins-deepgram
+edge-tts
+SpeechRecognition
