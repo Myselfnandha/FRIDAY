@@ -31,8 +31,10 @@ async def entrypoint(ctx: JobContext):
     # 2. Init Agent
     # We use Google's Realtime API (Gemini 2.0)
     # This handles STT/TTS and LLM in one connection
+    from livekit.agents.multimodal import MultimodalAgent
+    from livekit.plugins.google.beta.realtime import RealtimeModel
     
-    agent = google.beta.MultimodalAgent(
+    model = RealtimeModel(
         model="models/gemini-2.0-flash-exp",
         api_key=os.getenv("GOOGLE_API_KEY"),
         instructions=(
@@ -45,6 +47,8 @@ async def entrypoint(ctx: JobContext):
             "When you speak, the Arc Reactor glows blue."
         )
     )
+    
+    agent = MultimodalAgent(model=model)
     
     # 3. Handle Chat (Data Channel)
     @ctx.room.on("data_received")
