@@ -8,6 +8,51 @@ from livekit import agents, rtc
 from livekit.plugins import google
 
 # Import Brain
+from brain import AlanBrain
+
+load_dotenv()
+
+# Logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("alan-agent")
+
+# BRAIN INSTANCE
+brain = AlanBrain()
+
+def prewarm(proc: JobContext):
+    proc.userdata["brain"] = brain
+
+async def entrypoint(ctx: JobContext):
+    logger.info(f"Starting ALAN Agent in room {ctx.room.name}")
+    
+    # 1. Connect
+    await ctx.connect()
+    
+    # 2. Init Agent
+    # We use Google's Realtime API (Gemini 2.0)
+    # This handles STT/TTS and LLM in one connection
+    from livekit.agents.multimodal import MultimodalAgent
+    from livekit.plugins.google.beta.realtime import RealtimeModel
+    
+    api_key = os.getenv("GOOGLE_API_KEY1") or os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        logger.error("No Google API Key found (checked GOOGLE_API_KEY1 and GOOGLE_API_KEY).")
+
+    model = RealtimeModel(
+        model="models/gemini-2.0-flash-exp",
+        api_key=api_key,
+        instructions=(
+            "You are ALAN. "
+            "System: Project ALAN v2. "
+            "Traits: Precise, Concise, Adaptive. "
+            "If the user speaks Tamil, reply in Tamil. "
+            "If the user speaks English, reply in English. "
+            "You control the ALAN Interface. "
+            "When you speak, the Arc Reactor glows blue."
+        )
+    )
+    agent = MultimodalAgent(model=model)
+    
     # State tracking via dictionary to support closure modification
     state = {"active": False}
 
