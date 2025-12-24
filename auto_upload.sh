@@ -9,8 +9,16 @@ mkdir -p frontend_react
 find frontend_react -mindepth 1 -delete
 tar -cf - --exclude='node_modules' --exclude='.next' --exclude='out' --exclude='.git' --exclude='.vercel' -C frontend_alan . | tar -xf - -C frontend_react
 
-# 2. Trigger Vercel Deployment (via GitHub Webhook)
-
+# 2. Trigger Vercel Deployment (Best Effort Check)
+# Check for Vercel CLI locally
+if command -v vercel &> /dev/null; then
+    echo "🚀 Vercel CLI found. Triggering deployment..."
+    cd frontend_react
+    vercel deploy --prod --yes || echo "⚠️ Vercel CLI deploy failed (Check login?)"
+    cd ..
+else
+    echo "ℹ️ Vercel CLI not found. Deployment will happen via GitHub Push."
+fi
 
 echo "🚀 Pushing to Repositories..."
 

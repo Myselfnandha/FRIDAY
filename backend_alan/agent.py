@@ -53,13 +53,26 @@ async def entrypoint(ctx: JobContext):
     )
     agent = MultimodalAgent(model=model)
     
-    # TTS Instance for manual speech
-    google_tts = google.TTS()
+    # TTS Instance for manual speech (Usually works with API Key? Logic says yes if using REST, no if gRPC. Let's try/except it too just in case)
+    try:
+        google_tts = google.TTS()
+    except Exception as e:
+        logger.warning(f"TTS Init failed (Credential issue?): {e}")
+        google_tts = None
+
     # STT Instance for fallback speech recognition
-    google_stt = google.STT()
+    # This requires Google Cloud Credentials (JSON), failing with just API Key.
+    try:
+        google_stt = google.STT()
+    except Exception as e:
+        logger.warning(f"STT Init failed (Missing Google Cloud Credentials?): {e}")
+        google_stt = None
 
     async def speak_text(text: str):
         """Helper to speak text via TTS"""
+        if not google_tts:
+            return
+        
         logger.info(f"Speaking: {text}")
         try:
             audio_stream = google_tts.synthesize(text)
@@ -105,28 +118,31 @@ async def entrypoint(ctx: JobContext):
     # 4. Handle Audio (STT Fallback)
     @ctx.room.on("track_subscribed")
     def on_track_subscribed(track: rtc.Track, publication: rtc.TrackPublication, participant: rtc.RemoteParticipant):
-        if track.kind == rtc.TrackKind.KIND_AUDIO and not agent_active:
+        if track.kind == rtc.TrackKind.KIND_AUDIO and not agent_active and google_stt:
             logger.info("Fallback Mode: Subscribing to User Audio for STT")
             
             async def transcribe_track():
-                audio_stream = rtc.AudioStream(track)
-                stt_stream = google_stt.stream()
-                
-                async def forward_audio():
-                    async for frame in audio_stream:
-                        stt_stream.push_frame(frame)
-                
-                async def handle_transcription():
-                    async for event in stt_stream:
-                         if event.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
-                             text = event.alternatives[0].text
-                             logger.info(f"STT Heard: {text}")
-                             if text:
-                                 await process_text_input(text)
-                
-                import asyncio
-                asyncio.create_task(forward_audio())
-                await handle_transcription()
+                try:
+                    audio_stream = rtc.AudioStream(track)
+                    stt_stream = google_stt.stream()
+                    
+                    async def forward_audio():
+                        async for frame in audio_stream:
+                            stt_stream.push_frame(frame)
+                    
+                    async def handle_transcription():
+                        async for event in stt_stream:
+                             if event.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
+                                 text = event.alternatives[0].text
+                                 logger.info(f"STT Heard: {text}")
+                                 if text:
+                                     await process_text_input(text)
+                    
+                    import asyncio
+                    asyncio.create_task(forward_audio())
+                    await handle_transcription()
+                except Exception as e:
+                     logger.error(f"Fallback STT Error: {e}")
 
             import asyncio
             asyncio.create_task(transcribe_track())
