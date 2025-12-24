@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Send } from 'lucide-react';
 import { useLocalParticipant } from '@livekit/components-react';
 
-export const ChatInput = () => {
+export const ChatInput = ({ onSend }: { onSend?: (text: string) => void }) => {
     const [msg, setMsg] = useState('');
     const { localParticipant } = useLocalParticipant();
 
@@ -16,6 +16,9 @@ export const ChatInput = () => {
             const encoder = new TextEncoder();
             const data = encoder.encode(JSON.stringify({ type: 'user_chat', text: msg }));
             await localParticipant.publishData(data, { reliable: true });
+
+            // Notify parent
+            onSend?.(msg);
         }
 
         setMsg('');
