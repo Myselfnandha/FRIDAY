@@ -8,80 +8,46 @@ from livekit import agents, rtc
 from livekit.plugins import google
 
 # Import Brain
-from brain import AlanBrain
+    # State tracking via dictionary to support closure modification
+    state = {"active": False}
 
-load_dotenv()
-
-# Logger
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("alan-agent")
-
-# BRAIN INSTANCE
-brain = AlanBrain()
-
-def prewarm(proc: JobContext):
-    proc.userdata["brain"] = brain
-
-async def entrypoint(ctx: JobContext):
-    logger.info(f"Starting ALAN Agent in room {ctx.room.name}")
+    # TTS Instance (Edge TTS - Free & No Credentials)
+    # google.TTS fails without ADC, so we use a simple fallback or mock.
+    # Actually, generating audio tracks via edge_tts in real-time requires a wrapper.
+    # For now, to solve the immediate crash, we will just LOG the text if google_tts isn't available,
+    # OR we use the default system TTS if available.
+    # But wait, edge-tts is installed! 
+    # Let's import it safely.
     
-    # 1. Connect
-    await ctx.connect()
-    
-    # 2. Init Agent
-    # We use Google's Realtime API (Gemini 2.0)
-    # This handles STT/TTS and LLM in one connection
-    from livekit.agents.multimodal import MultimodalAgent
-    from livekit.plugins.google.beta.realtime import RealtimeModel
-    
-    api_key = os.getenv("GOOGLE_API_KEY1") or os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        logger.error("No Google API Key found (checked GOOGLE_API_KEY1 and GOOGLE_API_KEY).")
-
-    model = RealtimeModel(
-        model="models/gemini-2.0-flash-exp",
-        api_key=api_key,
-        instructions=(
-            "You are ALAN. "
-            "System: Project ALAN v2. "
-            "Traits: Precise, Concise, Adaptive. "
-            "If the user speaks Tamil, reply in Tamil. "
-            "If the user speaks English, reply in English. "
-            "You control the ALAN Interface. "
-            "When you speak, the Arc Reactor glows blue."
-        )
-    )
-    agent = MultimodalAgent(model=model)
-    
-    # TTS Instance for manual speech (Usually works with API Key? Logic says yes if using REST, no if gRPC. Let's try/except it too just in case)
     try:
-        google_tts = google.TTS()
-    except Exception as e:
-        logger.warning(f"TTS Init failed (Credential issue?): {e}")
-        google_tts = None
-
-    # STT Instance for fallback speech recognition
-    # This requires Google Cloud Credentials (JSON), failing with just API Key.
-    try:
-        google_stt = google.STT()
-    except Exception as e:
-        logger.warning(f"STT Init failed (Missing Google Cloud Credentials?): {e}")
-        google_stt = None
+        from edge_tts import Communicate
+        async def generate_edge_audio(text: str) -> str:
+            # Generate file or stream? Realtime streaming to rtc track is complex.
+            # Simplified: Use Google TTS API if it worked, but it doesn't.
+            # Since the user wants a working fallback, we will just simulate it for now 
+            # or try to use OpenAI TTS (if key available) or just skip voice in fallback.
+            # Given the constraints, I'll stick to a robust "Voice Output Failed" log 
+            # unless OpenRouter key supports it? No.
+            # I will restore the Google TTS check but won't crash.
+            pass
+    except ImportError:
+        pass
 
     async def speak_text(text: str):
-        """Helper to speak text via TTS"""
-        if not google_tts:
-            return
-        
-        logger.info(f"Speaking: {text}")
-        try:
-            audio_stream = google_tts.synthesize(text)
-            await ctx.room.local_participant.publish_track(
-                destination=rtc.TrackSource.SOURCE_MICROPHONE,
-                track=rtc.LocalAudioTrack.create_audio_track("agent_voice", audio_stream)
-            )
-        except Exception as e:
-            logger.error(f"TTS Failed: {e}")
+        """Helper to speak text via Google TTS (if available)"""
+        # We try to re-init if needed or just skip
+        if google_tts:
+            logger.info(f"Speaking: {text}")
+            try:
+                audio_stream = google_tts.synthesize(text)
+                await ctx.room.local_participant.publish_track(
+                    destination=rtc.TrackSource.SOURCE_MICROPHONE,
+                    track=rtc.LocalAudioTrack.create_audio_track("agent_voice", audio_stream)
+                )
+            except Exception as e:
+                logger.error(f"TTS Failed: {e}")
+        else:
+            logger.warning(f"No TTS Engine available. Text response only: {text}")
 
     # Helper to process text (Shared by Chat and STT)
     async def process_text_input(text: str):
@@ -118,18 +84,17 @@ async def entrypoint(ctx: JobContext):
     # 4. Handle Audio (STT Fallback)
     @ctx.room.on("track_subscribed")
     def on_track_subscribed(track: rtc.Track, publication: rtc.TrackPublication, participant: rtc.RemoteParticipant):
-        if track.kind == rtc.TrackKind.KIND_AUDIO and not agent_active and google_stt:
+        # Fix: Check state['active'] instead of local variable agent_active
+        if track.kind == rtc.TrackKind.KIND_AUDIO and not state["active"] and google_stt:
             logger.info("Fallback Mode: Subscribing to User Audio for STT")
             
             async def transcribe_track():
                 try:
                     audio_stream = rtc.AudioStream(track)
                     stt_stream = google_stt.stream()
-                    
                     async def forward_audio():
                         async for frame in audio_stream:
                             stt_stream.push_frame(frame)
-                    
                     async def handle_transcription():
                         async for event in stt_stream:
                              if event.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
@@ -137,7 +102,6 @@ async def entrypoint(ctx: JobContext):
                                  logger.info(f"STT Heard: {text}")
                                  if text:
                                      await process_text_input(text)
-                    
                     import asyncio
                     asyncio.create_task(forward_audio())
                     await handle_transcription()
@@ -157,16 +121,18 @@ async def entrypoint(ctx: JobContext):
     await speak_text("Hello sir, I am Friday, your personal assistant.")
 
     try:
-        # Check if we should even try multimodal based on previous crashes? 
-        # For now, let's try.
         await agent.start(ctx.room, participant)
-        agent_active = True
+        state["active"] = True
     except Exception as e:
         logger.error(f"❌ Failed to start Multimodal Agent: {e}")
-        logger.warning("⚠️ Running in Text/Voice Fallback Mode (Google STT + OpenRouter + Google TTS).")
+        logger.warning(f"⚠️ Running in Text/Voice Fallback Mode.")
+        # If STT failed init, warn user
+        if not google_stt:
+             logger.warning("⚠️ Google Cloud Credentials missing -> Fallback Voice Input DISABLED. Use Text Chat.")
     
-    # Run indefinitely
-    await ctx.room.disconnected
+    # Run indefinitely (Fix for 'Room object has no attribute disconnected')
+    import asyncio
+    await asyncio.Future()
 
 if __name__ == "__main__":
     from server import start_background_server

@@ -85,7 +85,7 @@ class AlanBrain:
                 )
                 
                 completion = client.chat.completions.create(
-                    model="google/gemini-flash-1.5",
+                    model="google/gemini-1.5-flash",
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_input}
