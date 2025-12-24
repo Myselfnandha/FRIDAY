@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import { Home, Bot, Code, Terminal, User } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -30,8 +32,8 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
                         key={item.id}
                         onClick={() => setActiveTab(item.id)}
                         className={`flex items-center gap-4 p-3 rounded-xl transition-all duration-300 w-full group relative overflow-hidden ${activeTab === item.id
-                                ? 'bg-white/10 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
-                                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                            ? 'bg-white/10 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
                             }`}
                     >
                         <item.icon className="w-6 h-6 z-10" />

@@ -11,7 +11,7 @@ export const useCaptions = () => {
     useEffect(() => {
         if (!room) return;
 
-        const handleData = (payload: Uint8Array, participant: any, kind: DataPacket_Kind) => {
+        const handleData = (payload: Uint8Array, participant?: any, kind?: DataPacket_Kind, topic?: string) => {
             try {
                 const decoder = new TextDecoder();
                 const str = decoder.decode(payload);

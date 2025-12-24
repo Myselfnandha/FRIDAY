@@ -100,7 +100,14 @@ export function ALANInterface() {
                 {/* Camera Feed (Right Side) */}
                 {localVideoTrack && (
                     <div className="w-1/2 h-[60vh] bg-black/50 border border-white/10 rounded-2xl overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] animate-in fade-in slide-in-from-right-10">
-                        <VideoTrack trackRef={{ participant: localParticipant, source: Track.Source.Camera }} className="w-full h-full object-cover" />
+                        <VideoTrack
+                            trackRef={{
+                                participant: localParticipant,
+                                source: Track.Source.Camera,
+                                publication: localParticipant.getTrackPublication(Track.Source.Camera)!
+                            }}
+                            className="w-full h-full object-cover"
+                        />
                         <div className="absolute top-4 left-4 text-xs font-mono bg-black/60 px-2 py-1 rounded text-white/70">
                             CAMERA FEED
                         </div>

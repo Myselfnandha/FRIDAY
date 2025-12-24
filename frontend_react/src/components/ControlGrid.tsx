@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { useState } from 'react';
 import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
 import { Mic, MicOff, Video, VideoOff, Monitor, PhoneOff, ChevronDown } from 'lucide-react';
