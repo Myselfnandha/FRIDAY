@@ -11,41 +11,31 @@ from livekit.plugins import google
     # State tracking via dictionary to support closure modification
     state = {"active": False}
 
-    # TTS Instance (Edge TTS - Free & No Credentials)
-    # google.TTS fails without ADC, so we use a simple fallback or mock.
-    # Actually, generating audio tracks via edge_tts in real-time requires a wrapper.
-    # For now, to solve the immediate crash, we will just LOG the text if google_tts isn't available,
-    # OR we use the default system TTS if available.
-    # But wait, edge-tts is installed! 
-    # Let's import it safely.
+    # Deepgram TTS & STT (Best Free Option)
+    dg_api = os.getenv("DEEPGRAM_API_KEY")
+    deepgram_tts = None
+    deepgram_stt = None
     
-    try:
-        from edge_tts import Communicate
-        async def generate_edge_audio(text: str) -> str:
-            # Generate file or stream? Realtime streaming to rtc track is complex.
-            # Simplified: Use Google TTS API if it worked, but it doesn't.
-            # Since the user wants a working fallback, we will just simulate it for now 
-            # or try to use OpenAI TTS (if key available) or just skip voice in fallback.
-            # Given the constraints, I'll stick to a robust "Voice Output Failed" log 
-            # unless OpenRouter key supports it? No.
-            # I will restore the Google TTS check but won't crash.
-            pass
-    except ImportError:
-        pass
+    if dg_api:
+        from livekit.plugins import deepgram
+        deepgram_tts = deepgram.TTS(api_key=dg_api)
+        deepgram_stt = deepgram.STT(api_key=dg_api)
+        logger.info("✅ Deepgram Fallback Plugin Initialized")
+    else:
+        logger.warning("⚠️ No DEEPGRAM_API_KEY found. Fallback Voice Mode will be text-only. Add it to Secrets!")
 
     async def speak_text(text: str):
-        """Helper to speak text via Google TTS (if available)"""
-        # We try to re-init if needed or just skip
-        if google_tts:
+        """Helper to speak text via Deepgram TTS (if available)"""
+        if deepgram_tts:
             logger.info(f"Speaking: {text}")
             try:
-                audio_stream = google_tts.synthesize(text)
+                audio_stream = deepgram_tts.synthesize(text)
                 await ctx.room.local_participant.publish_track(
                     destination=rtc.TrackSource.SOURCE_MICROPHONE,
                     track=rtc.LocalAudioTrack.create_audio_track("agent_voice", audio_stream)
                 )
             except Exception as e:
-                logger.error(f"TTS Failed: {e}")
+                logger.error(f"Deepgram TTS Failed: {e}")
         else:
             logger.warning(f"No TTS Engine available. Text response only: {text}")
 
@@ -84,14 +74,14 @@ from livekit.plugins import google
     # 4. Handle Audio (STT Fallback)
     @ctx.room.on("track_subscribed")
     def on_track_subscribed(track: rtc.Track, publication: rtc.TrackPublication, participant: rtc.RemoteParticipant):
-        # Fix: Check state['active'] instead of local variable agent_active
-        if track.kind == rtc.TrackKind.KIND_AUDIO and not state["active"] and google_stt:
+        # Fallback only if agent not active AND we have STT
+        if track.kind == rtc.TrackKind.KIND_AUDIO and not state["active"] and deepgram_stt:
             logger.info("Fallback Mode: Subscribing to User Audio for STT")
             
             async def transcribe_track():
                 try:
                     audio_stream = rtc.AudioStream(track)
-                    stt_stream = google_stt.stream()
+                    stt_stream = deepgram_stt.stream()
                     async def forward_audio():
                         async for frame in audio_stream:
                             stt_stream.push_frame(frame)
@@ -127,8 +117,8 @@ from livekit.plugins import google
         logger.error(f"❌ Failed to start Multimodal Agent: {e}")
         logger.warning(f"⚠️ Running in Text/Voice Fallback Mode.")
         # If STT failed init, warn user
-        if not google_stt:
-             logger.warning("⚠️ Google Cloud Credentials missing -> Fallback Voice Input DISABLED. Use Text Chat.")
+        if not deepgram_stt:
+             logger.warning("⚠️ DEEPGRAM_API_KEY missing -> Fallback Voice Input DISABLED. Use Text Chat.")
     
     # Run indefinitely (Fix for 'Room object has no attribute disconnected')
     import asyncio
