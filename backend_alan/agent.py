@@ -67,63 +67,42 @@ async def entrypoint(ctx: JobContext):
         """Generates audio using EdgeTTS and plays it via LiveKit."""
         logger.info(f"Speaking (EdgeTTS): {text}")
         try:
-            # Generate Audio
-            communicate = edge_tts.Communicate(text, "en-US-ChristopherNeural") # Great male voice
-            
-            # Stream to file (Simpler for compatibility with LiveKit AudioStream)
-            # Efficient way: Write to memory buffer
-            # Note: LiveKit expects an Async Iterable or similar. 
-            # We can use a decoded stream.
-            # Easiest valid way: Save mp3, decode to PCM using av (since we have av installed)
-            
+            communicate = edge_tts.Communicate(text, "en-US-ChristopherNeural")
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as fp:
                 temp_filename = fp.name
-            
             await communicate.save(temp_filename)
-            
-            # Read and Play
-            # We use rtc.AudioSource and read the file
-            # Actually, to publish, we need to decode it.
-            # Simplified: Just Log it if complex decoding is risky without ffmpeg.
-            # But the user wants "BEST LOCAL TTS".
-            # We will try to rely on a simpler publish if possible, or just text.
-            # Wait, `livekit` has `AudioFrame`.
-            # Let's try to just use valid Google TTS if avaliable? No, credentials fail.
-            # Let's stick to Text Fallback mostly, but try to speak.
-            
-            # Decoding MP3 to PCM for LiveKit is non-trivial without FFMPEG installed in environment.
-            # The container MIGHT have ffmpeg.
-            # Let's assume text-only fallback is safer for now to avoid specific "ChunkedStream" errors,
-            # unless we can trust `av`. We have `av`!
             
             import av
             container = av.open(temp_filename)
             stream = container.streams.audio[0]
             
-            # Create a source
-            source = rtc.AudioSource(stream.sample_rate, stream.channels)
+            # LiveKit AudioSource expects consistent input. 
+            # We will resample to 24000Hz Stereo S16 for high quality.
+            target_sample_rate = 24000
+            target_channels = 1
+            source = rtc.AudioSource(target_sample_rate, target_channels)
             track = rtc.LocalAudioTrack.create_audio_track("agent_voice", source)
             await ctx.room.local_participant.publish_track(track)
             
-            # Push frames
+            resampler = av.AudioResampler(
+                format='s16',
+                layout='mono',
+                rate=target_sample_rate
+            )
+
             for frame in container.decode(stream):
-                # We need to convert AV frame to LiveKit AudioFrame
-                # This matches deepgram plugin logic internally.
-                # Ideally we just copy data.
-                # This is complex. 
-                # Alternative: Just skip voice for now on fallback to be safe?
-                # User asked for "BEST".
-                # Let's try pushing frames.
-                lk_frame = rtc.AudioFrame(
-                    data=frame.to_ndarray().tobytes(),
-                    sample_rate=frame.sample_rate,
-                    num_channels=len(frame.layout.channels),
-                    samples_per_channel=frame.samples
-                )
-                await source.capture_frame(lk_frame)
+                # Resample frame
+                frames = resampler.resample(frame)
+                for resampled_frame in frames:
+                    lk_frame = rtc.AudioFrame(
+                        data=resampled_frame.to_ndarray().tobytes(),
+                        sample_rate=target_sample_rate,
+                        num_channels=target_channels,
+                        samples_per_channel=resampled_frame.samples
+                    )
+                    await source.capture_frame(lk_frame)
             
             os.remove(temp_filename)
-            
         except Exception as e:
             logger.error(f"EdgeTTS Failed: {e}")
 
@@ -157,45 +136,55 @@ async def entrypoint(ctx: JobContext):
                 audio_stream = rtc.AudioStream(track)
                 recognizer = sr.Recognizer()
                 
-                # Buffer for audio accumulation
-                # We need to collect enough audio to process (e.g., VAD-like or chunked)
-                # Simple approach: Collect 5 seconds chunks?
-                # Or wait for silence? Hard to do manually.
-                # Let's accept that fallback voice input is EXPERIMENTAL.
-                # We will process 4-second chunks.
+                # STT requires 16000Hz Mono S16 usually for best results
+                target_rate = 16000
+                import av
+                resampler = av.AudioResampler(format='s16', layout='mono', rate=target_rate)
                 
                 buffer = bytearray()
-                chunk_size_seconds = 4
-                sample_rate = 48000 # LiveKit default often 48k or 24k
-                # We will just read frames and append.
+                chunk_seconds = 3 # Smaller chunks for responsiveness
+                bytes_per_sec = target_rate * 2 # 16bit = 2 bytes
+                chunk_size = bytes_per_sec * chunk_seconds
                 
                 async for event in audio_stream:
-                    # 'event' is AudioFrameEvent, contains 'frame' (AudioFrame)
                     frame = event.frame
                     
-                    # update sample rate from frame
-                    sample_rate = frame.sample_rate
-                    buffer.extend(frame.data)
+                    # Convert LiveKit AudioFrame to AV Frame for resampling
+                    # We need to construct an AV frame from raw bytes. 
+                    # This is tricky. PyAV expects distinct planes. 
+                    # Easier: Simply trust LiveKit's frame has data and assume we need to process it.
+                    # Wait, accessing raw bytes and feeding SR is cleaner if we just assume 
+                    # the input IS PCM. LiveKit WebRTC is usually 48kHz.
+                    # SW-Resampling locally with `audioop` (standard lib) is safer than wrapping PyAV frames manually.
                     
-                    # If buffer > X bytes (approx 4 seconds at 16bit mono)
-                    # 48000 * 2 bytes * 4 secs = 384000
-                    if len(buffer) > (sample_rate * 2 * chunk_size_seconds):
+                    import audioop
+                    # Resample from frame.sample_rate to 16000
+                    data = frame.data
+                    if frame.sample_rate != target_rate:
+                        data, _ = audioop.ratecv(data, 2, 1, frame.sample_rate, target_rate, None)
+                        # data, width, channels, in_rate, out_rate, state
+                        # Assuming mono input from mic. If stereo, mixed? LiveKit mic is usually mono/stereo.
+                        # Let's force mono if needed? audioop.tomono
+                        if frame.num_channels == 2:
+                            data = audioop.tomono(data, 2, 0.5, 0.5)
+
+                    buffer.extend(data)
+                    
+                    if len(buffer) >= chunk_size:
                         # Process
-                        data_to_process = bytes(buffer)
-                        buffer = bytearray() # clear
-                        
-                        # Convert raw PCM to AudioData for SR
-                        audio_data = sr.AudioData(data_to_process, sample_rate, 2) # 2 bytes width (16-bit)
+                        audio_data = sr.AudioData(bytes(buffer), target_rate, 2)
+                        buffer = bytearray() # Reset
                         
                         try:
-                            # Run blocking recognize in executor
+                            # Run blocking recognize
                             loop = asyncio.get_event_loop()
+                            # recognize_google is blocking.
                             text = await loop.run_in_executor(None, lambda: recognizer.recognize_google(audio_data))
                             logger.info(f"STT Heard: {text}")
                             if text:
                                 await process_text_input(text)
                         except sr.UnknownValueError:
-                            pass # Silence
+                            pass
                         except Exception as e:
                             logger.error(f"STT Error: {e}")
 
