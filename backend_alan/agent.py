@@ -169,7 +169,10 @@ async def entrypoint(ctx: JobContext):
                 sample_rate = 48000 # LiveKit default often 48k or 24k
                 # We will just read frames and append.
                 
-                async for frame in audio_stream:
+                async for event in audio_stream:
+                    # 'event' is AudioFrameEvent, contains 'frame' (AudioFrame)
+                    frame = event.frame
+                    
                     # update sample rate from frame
                     sample_rate = frame.sample_rate
                     buffer.extend(frame.data)
