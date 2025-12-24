@@ -4,3 +4,4 @@ livekit-plugins-google<1.0.0
 google-genai
 python-dotenv
 av
+openai

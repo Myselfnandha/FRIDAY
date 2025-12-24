@@ -34,9 +34,13 @@ async def entrypoint(ctx: JobContext):
     from livekit.agents.multimodal import MultimodalAgent
     from livekit.plugins.google.beta.realtime import RealtimeModel
     
+    api_key = os.getenv("GOOGLE_API_KEY1") or os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        logger.error("No Google API Key found (checked GOOGLE_API_KEY1 and GOOGLE_API_KEY).")
+
     model = RealtimeModel(
         model="models/gemini-2.0-flash-exp",
-        api_key=os.getenv("GOOGLE_API_KEY"),
+        api_key=api_key,
         instructions=(
             "You are ALAN. "
             "System: Project ALAN v2. "
@@ -47,59 +51,114 @@ async def entrypoint(ctx: JobContext):
             "When you speak, the Arc Reactor glows blue."
         )
     )
-    
     agent = MultimodalAgent(model=model)
     
+    # TTS Instance for manual speech
+    google_tts = google.TTS()
+    # STT Instance for fallback speech recognition
+    google_stt = google.STT()
+
+    async def speak_text(text: str):
+        """Helper to speak text via TTS"""
+        logger.info(f"Speaking: {text}")
+        try:
+            audio_stream = google_tts.synthesize(text)
+            await ctx.room.local_participant.publish_track(
+                destination=rtc.TrackSource.SOURCE_MICROPHONE,
+                track=rtc.LocalAudioTrack.create_audio_track("agent_voice", audio_stream)
+            )
+        except Exception as e:
+            logger.error(f"TTS Failed: {e}")
+
+    # Helper to process text (Shared by Chat and STT)
+    async def process_text_input(text: str):
+        # Get response (Brain handles fallback)
+        response_text = await brain.think(text, ctx)
+        
+        # Send Text to UI
+        reply = {
+            "type": "agent_chat",
+            "text": response_text
+        }
+        await ctx.room.local_participant.publish_data(
+            json.dumps(reply).encode("utf-8"),
+            reliable=True
+        )
+        
+        # Voice Output
+        await speak_text(response_text)
+
     # 3. Handle Chat (Data Channel)
     @ctx.room.on("data_received")
     def on_data(data: rtc.DataPacket):
         try:
             msg = data.data.decode("utf-8")
-            logger.info(f"Received data: {msg}")
-            
             payload = json.loads(msg)
             if payload.get('type') == 'user_chat':
                 user_text = payload.get('text')
                 if user_text:
-                    # Async dispatch to Brain
-                    # We use a task so we don't block the loop
-                    async def process_chat():
-                        response_text = await brain.think(user_text, ctx)
-                        # Send back to UI
-                        reply = {
-                            "type": "agent_chat",
-                            "text": response_text
-                        }
-                        await ctx.room.local_participant.publish_data(
-                            json.dumps(reply).encode("utf-8"),
-                            reliable=True
-                        )
-                    
-                    # Schedule the task
                     import asyncio
-                    asyncio.create_task(process_chat())
-                 
+                    asyncio.create_task(process_text_input(user_text))
         except Exception as e:
             logger.error(f"Error handling data: {e}")
 
-    # 4. Start
+    # 4. Handle Audio (STT Fallback)
+    @ctx.room.on("track_subscribed")
+    def on_track_subscribed(track: rtc.Track, publication: rtc.TrackPublication, participant: rtc.RemoteParticipant):
+        if track.kind == rtc.TrackKind.KIND_AUDIO and not agent_active:
+            logger.info("Fallback Mode: Subscribing to User Audio for STT")
+            
+            async def transcribe_track():
+                audio_stream = rtc.AudioStream(track)
+                stt_stream = google_stt.stream()
+                
+                async def forward_audio():
+                    async for frame in audio_stream:
+                        stt_stream.push_frame(frame)
+                
+                async def handle_transcription():
+                    async for event in stt_stream:
+                         if event.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
+                             text = event.alternatives[0].text
+                             logger.info(f"STT Heard: {text}")
+                             if text:
+                                 await process_text_input(text)
+                
+                import asyncio
+                asyncio.create_task(forward_audio())
+                await handle_transcription()
+
+            import asyncio
+            asyncio.create_task(transcribe_track())
+
+    # 5. Start Agent (Attempt)
     participant = await ctx.wait_for_participant()
     logger.info(f"Starting agent for participant: {participant.identity}")
     
-    await agent.start(ctx.room, participant)
+    # Send Greeting (Text)
+    greeting = {"type": "agent_chat", "text": "Hello sir, I am Friday, your personal assistant."}
+    await ctx.room.local_participant.publish_data(json.dumps(greeting).encode("utf-8"), reliable=True)
+    await speak_text("Hello sir, I am Friday, your personal assistant.")
+
+    try:
+        # Check if we should even try multimodal based on previous crashes? 
+        # For now, let's try.
+        await agent.start(ctx.room, participant)
+        agent_active = True
+    except Exception as e:
+        logger.error(f"❌ Failed to start Multimodal Agent: {e}")
+        logger.warning("⚠️ Running in Text/Voice Fallback Mode (Google STT + OpenRouter + Google TTS).")
     
-    # Run indefinitely (or until room closes)
-    # MultimodalAgent usually runs in background tasks, so we just wait
+    # Run indefinitely
     await ctx.room.disconnected
 
 if __name__ == "__main__":
-    # Start the Universal UI Server (Static + API)
     from server import start_background_server
     start_background_server()
 
-    agents.cli.run_app(
-        agents.WorkerOptions(
-            entrypoint_fnc=entrypoint,
-            prewarm_fnc=prewarm,
-        ),
-    )
+    try:
+        agents.cli.run_app(
+            agents.WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm),
+        )
+    except Exception as e:
+        logger.error(f"Worker Error: {e}")

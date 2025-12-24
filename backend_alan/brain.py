@@ -54,9 +54,12 @@ class AlanBrain:
         # 4. Action (Generate Response)
         # Using standard Gemini Flash for the "Thinking" / Text-Chat layer
         # 4. Action (Generate Response)
+        # 4. Action (Generate Response)
         try:
             from google import genai
-            client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+            # PRIORITIZE KEY 1
+            api_key = os.getenv("GOOGLE_API_KEY1") or os.getenv("GOOGLE_API_KEY")
+            client = genai.Client(api_key=api_key)
             
             response = client.models.generate_content(
                 model="gemini-2.0-flash-exp",
@@ -64,12 +67,36 @@ class AlanBrain:
             )
             
             text_response = response.text
-            
-            # Log output context
             self.memory.log_interaction("assistant", text_response)
             return text_response
-        except Exception as e:
-            logger.error(f"Brain freeze: {e}")
-            return "I am unable to process that request safely explicitly."
+
+        except Exception as google_e:
+            logger.warning(f"Google Brain error: {google_e}. Switch to OpenRouter...")
+            try:
+                # OPENROUTER FALLBACK
+                from openai import OpenAI
+                or_key = os.getenv("OPENROUTER_API")
+                if not or_key:
+                    raise Exception("No OPENROUTER_API key configured.")
+
+                client = OpenAI(
+                    base_url="https://openrouter.ai/api/v1",
+                    api_key=or_key,
+                )
+                
+                completion = client.chat.completions.create(
+                    model="google/gemini-flash-1.5",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_input}
+                    ]
+                )
+                text_response = completion.choices[0].message.content
+                self.memory.log_interaction("assistant", text_response)
+                return text_response
+                
+            except Exception as e:
+                logger.error(f"Brain total freeze: {e}")
+                return "I am unable to process that request safely explicitly."
 
 
