@@ -20,7 +20,8 @@ export default function Home() {
         if (ctx.state === 'suspended') await ctx.resume();
 
         try {
-            const resp = await fetch('/api/token?room=alan-room&username=user-frontend');
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+            const resp = await fetch(`${backendUrl}/api/token?room=alan-room&username=user-frontend`);
             const data = await resp.json();
             if (data.token) {
                 setToken(data.token);
