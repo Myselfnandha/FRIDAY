@@ -38,7 +38,7 @@ export const ArcReactor = ({ state, volume }: ArcReactorProps) => {
             {/* 3. TARS Square Frames (Rotating and shifting) */}
             <motion.div
                 className={`absolute w-40 h-40 border border-white/20 bg-white/5 backdrop-blur-sm`}
-                animate={{ rotate: state === 'working' ? 180 : 0 }}
+                animate={{ rotate: state === 'thinking' ? 180 : 0 }}
                 transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
             />
             <motion.div

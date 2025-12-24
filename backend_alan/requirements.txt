@@ -1,7 +1,5 @@
 livekit-agents
-livekit-plugins-google
-livekit-agents
+livekit-api
 livekit-plugins-google
 google-genai
-python-dotenv
 python-dotenv

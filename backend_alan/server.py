@@ -15,6 +15,13 @@ class AlanRequestHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=STATIC_DIR, **kwargs)
 
     def do_GET(self):
+        # 0. Health Check
+        if self.path == "/health":
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"OK")
+            return
+
         # 1. API: Token Generation
         if self.path.startswith("/api/token"):
             self.handle_token_request()
@@ -23,6 +30,15 @@ class AlanRequestHandler(SimpleHTTPRequestHandler):
         # 2. Static Files (Default behavior)
         # Check if file exists, if not serve index.html (SPA Fallback)
         path = self.translate_path(self.path)
+        
+        # Robustness: If public dir missing or empty, serve simple message for root
+        if not os.path.exists(STATIC_DIR) or not os.listdir(STATIC_DIR):
+             if self.path == "/" or self.path == "/index.html":
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"ALAN Backend Active. UI not yet built.")
+                return
+
         if not os.path.exists(path) or os.path.isdir(path):
             # If explicit file not found, serve index.html
             # Note: translate_path joins directory + path
