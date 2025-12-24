@@ -72,35 +72,49 @@ async def entrypoint(ctx: JobContext):
                 temp_filename = fp.name
             await communicate.save(temp_filename)
             
-            import av
-            container = av.open(temp_filename)
-            stream = container.streams.audio[0]
-            
             # LiveKit AudioSource expects consistent input. 
-            # We will resample to 24000Hz Stereo S16 for high quality.
             target_sample_rate = 24000
             target_channels = 1
             source = rtc.AudioSource(target_sample_rate, target_channels)
             track = rtc.LocalAudioTrack.create_audio_track("agent_voice", source)
             await ctx.room.local_participant.publish_track(track)
-            
-            resampler = av.AudioResampler(
-                format='s16',
-                layout='mono',
-                rate=target_sample_rate
-            )
 
-            for frame in container.decode(stream):
-                # Resample frame
-                frames = resampler.resample(frame)
-                for resampled_frame in frames:
-                    lk_frame = rtc.AudioFrame(
-                        data=resampled_frame.to_ndarray().tobytes(),
-                        sample_rate=target_sample_rate,
-                        num_channels=target_channels,
-                        samples_per_channel=resampled_frame.samples
-                    )
-                    await source.capture_frame(lk_frame)
+            # Offload heavy AV processing to a thread to avoid blocking asyncio loop
+            def process_audio_file():
+                import av
+                frames_data = [] # List of (data, sample_rate, channels, samples)
+                container = av.open(temp_filename)
+                stream = container.streams.audio[0]
+                
+                resampler = av.AudioResampler(
+                    format='s16',
+                    layout='mono',
+                    rate=target_sample_rate
+                )
+
+                for frame in container.decode(stream):
+                    # Resample frame
+                    resampled_frames = resampler.resample(frame)
+                    for rf in resampled_frames:
+                        frames_data.append((
+                            rf.to_ndarray().tobytes(),
+                            target_sample_rate,
+                            target_channels,
+                            rf.samples
+                        ))
+                return frames_data
+
+            loop = asyncio.get_event_loop()
+            frames = await loop.run_in_executor(None, process_audio_file)
+            
+            for (data, rate, channels, samples) in frames:
+                lk_frame = rtc.AudioFrame(
+                    data=data,
+                    sample_rate=rate,
+                    num_channels=channels,
+                    samples_per_channel=samples
+                )
+                await source.capture_frame(lk_frame)
             
             os.remove(temp_filename)
         except Exception as e:
