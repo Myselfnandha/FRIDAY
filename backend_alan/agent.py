@@ -84,6 +84,23 @@ async def entrypoint(ctx: JobContext):
     await agent.run()
 
 if __name__ == "__main__":
+    # Start a dummy health check server for Hugging Face Spaces
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import threading
+
+    def start_health_check():
+        class HealthCheckHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"OK")
+        
+        httpd = HTTPServer(("0.0.0.0", 7860), HealthCheckHandler)
+        logger.info("Starting health check server on port 7860")
+        httpd.serve_forever()
+
+    threading.Thread(target=start_health_check, daemon=True).start()
+
     agents.cli.run_app(
         agents.WorkerOptions(
             entrypoint_fnc=entrypoint,
