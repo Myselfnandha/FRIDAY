@@ -32,7 +32,7 @@ async def entrypoint(ctx: JobContext):
     # We use Google's Realtime API (Gemini 2.0)
     # This handles STT/TTS and LLM in one connection
     
-    agent = google.beta.RealtimeClient(
+    agent = google.beta.MultimodalAgent(
         model="models/gemini-2.0-flash-exp",
         api_key=os.getenv("GOOGLE_API_KEY"),
         instructions=(
@@ -79,9 +79,14 @@ async def entrypoint(ctx: JobContext):
             logger.error(f"Error handling data: {e}")
 
     # 4. Start
-    agent.start(ctx.room)
+    participant = await ctx.wait_for_participant()
+    logger.info(f"Starting agent for participant: {participant.identity}")
     
-    await agent.run()
+    await agent.start(ctx.room, participant)
+    
+    # Run indefinitely (or until room closes)
+    # MultimodalAgent usually runs in background tasks, so we just wait
+    await ctx.room.disconnected
 
 if __name__ == "__main__":
     # Start the Universal UI Server (Static + API)
