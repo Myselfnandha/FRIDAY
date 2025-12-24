@@ -3,8 +3,11 @@
 # Auto Upload Script for Project ALAN
 # 1. Sync Frontend Source -> Frontend Deployment Mirror
 echo "🔄 Syncing frontend_alan to frontend_react..."
-# Use rsync to exclude node_modules and build artifacts for speed
-rsync -av --delete --exclude 'node_modules' --exclude '.next' --exclude 'out' --exclude '.git' --exclude '.vercel' frontend_alan/ frontend_react/
+# Use tar to exclude heavy folders (works everywhere, no rsync needed)
+mkdir -p frontend_react
+# Clean destination but keep the dir
+find frontend_react -mindepth 1 -delete
+tar -cf - --exclude='node_modules' --exclude='.next' --exclude='out' --exclude='.git' --exclude='.vercel' -C frontend_alan . | tar -xf - -C frontend_react
 
 # 2. Trigger Vercel Deployment (via GitHub Webhook)
 
