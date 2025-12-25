@@ -143,6 +143,16 @@ async def entrypoint(ctx: JobContext):
         # Stop any current speech immediately when thinking starts
         state["speech_id"] += 1 
         
+        # VISION CHECK
+        # If user implies seeing something, and we have a frame
+        if "see" in text.lower() or "look" in text.lower() or "screen" in text.lower():
+            if state.get("latest_frame"):
+                # In a full visual agent, we'd send the image to Gemini.
+                # Here we just acknowledge it in the metadata for the brain.
+                logger.info("Attaching visual context to request.")
+                text += " [Visual Context Available: User is sharing video/screen]"
+                # TODO: Implement actual frame -> base64 -> Gemini call in Brain
+        
         # Create Unified Event
         input_type = InputSource.TEXT if source == "text" else InputSource.VOICE
         event = input_processor.process(input_type, text)
@@ -167,13 +177,42 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.error(f"Error handling data: {e}")
 
-    # 4. Handle Audio (STT Fallback - with VAD)
+    # 4. Handle Audio & Video
     @ctx.room.on("track_subscribed")
     def on_track_subscribed(track: rtc.Track, publication: rtc.TrackPublication, participant: rtc.RemoteParticipant):
+        # --- VIDEO / SCREEN SHARING ---
         if track.kind == rtc.TrackKind.KIND_VIDEO:
             logger.info(f"Visual Input Detected: {track.name} ({publication.source})")
+            
+            async def process_video_track():
+                video_stream = rtc.VideoStream(track)
+                last_process_time = 0
+                process_interval = 2.0 # Analyze every 2 seconds
+                
+                async for event in video_stream:
+                    import time
+                    now = time.time()
+                    if now - last_process_time > process_interval:
+                        last_process_time = now
+                        
+                        # Convert Frame to JPEG Bytes
+                        frame = event.frame
+                        # LiveKit VideoFrame -> RGB -> JPEG
+                        # This requires converting the YUV frame to RGB
+                        # For simplicity in this fallback, we might skip complex conversion 
+                        # OR use a library if available. 
+                        # Ideally, we send the intent "I see <description>" to the brain.
+                        
+                        # Saving frame for potential "Look at this" queries
+                        state["latest_frame"] = frame
+                        
+                        # If user ASKED to look, we can process immediately. 
+                        # Otherwise, we just cache it.
+                        
+            asyncio.create_task(process_video_track())
             return
 
+        # --- AUDIO (Fallback) ---
         if track.kind == rtc.TrackKind.KIND_AUDIO and not state["active"]:
             logger.info("Fallback Mode: Listening (Google Free API + Silero VAD)...")
             
