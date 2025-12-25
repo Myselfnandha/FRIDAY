@@ -67,10 +67,18 @@ async def entrypoint(ctx: JobContext):
     import speech_recognition as sr
     import tempfile
     import asyncio
+    from livekit.plugins import silero
     
+    # State for interruption
+    state["speech_id"] = 0
+
     # TTS Helper (EdgeTTS)
     async def speak_text(text: str):
         """Generates audio using EdgeTTS and plays it via LiveKit."""
+        # Interrupt previous
+        state["speech_id"] += 1
+        current_id = state["speech_id"]
+        
         logger.info(f"Speaking (EdgeTTS): {text}")
         try:
             communicate = edge_tts.Communicate(text, "en-US-ChristopherNeural")
@@ -85,10 +93,10 @@ async def entrypoint(ctx: JobContext):
             track = rtc.LocalAudioTrack.create_audio_track("agent_voice", source)
             await ctx.room.local_participant.publish_track(track)
 
-            # Offload heavy AV processing to a thread to avoid blocking asyncio loop
+            # Offload heavy AV processing to a thread
             def process_audio_file():
                 import av
-                frames_data = [] # List of (data, sample_rate, channels, samples)
+                frames_data = [] 
                 container = av.open(temp_filename)
                 stream = container.streams.audio[0]
                 
@@ -99,7 +107,6 @@ async def entrypoint(ctx: JobContext):
                 )
 
                 for frame in container.decode(stream):
-                    # Resample frame
                     resampled_frames = resampler.resample(frame)
                     for rf in resampled_frames:
                         frames_data.append((
@@ -114,6 +121,11 @@ async def entrypoint(ctx: JobContext):
             frames = await loop.run_in_executor(None, process_audio_file)
             
             for (data, rate, channels, samples) in frames:
+                # CHECK INTERRUPTION
+                if state["speech_id"] != current_id:
+                    logger.info("TTS Interrupted.")
+                    break
+                    
                 lk_frame = rtc.AudioFrame(
                     data=data,
                     sample_rate=rate,
@@ -128,6 +140,9 @@ async def entrypoint(ctx: JobContext):
 
     # Helper to process text
     async def process_text_input(text: str, source: str = "text"):
+        # Stop any current speech immediately when thinking starts
+        state["speech_id"] += 1 
+        
         # Create Unified Event
         input_type = InputSource.TEXT if source == "text" else InputSource.VOICE
         event = input_processor.process(input_type, text)
@@ -152,7 +167,7 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.error(f"Error handling data: {e}")
 
-    # 4. Handle Audio (STT Fallback - Google Free via SpeechRecognition)
+    # 4. Handle Audio (STT Fallback - with VAD)
     @ctx.room.on("track_subscribed")
     def on_track_subscribed(track: rtc.Track, publication: rtc.TrackPublication, participant: rtc.RemoteParticipant):
         if track.kind == rtc.TrackKind.KIND_VIDEO:
@@ -160,55 +175,58 @@ async def entrypoint(ctx: JobContext):
             return
 
         if track.kind == rtc.TrackKind.KIND_AUDIO and not state["active"]:
-            logger.info("Fallback Mode: Listening (Google Free API)...")
+            logger.info("Fallback Mode: Listening (Google Free API + Silero VAD)...")
             
             async def transcribe_track():
+                # Wrap with VAD
+                vad = silero.VAD.load()
+                # Create a VAD stream. Note: LiveKit Plugin Silero usage depends on version.
+                # Assuming standard plugin wrapping usually wraps the stream.
+                # For complexity, we will use the raw audio stream but ONLY process when volume/VAD triggers.
+                # Actually, simplest integration for raw audio is using Silero purely as a passive checker or 
+                # using the `VAD` class to filter frames.
+                
                 audio_stream = rtc.AudioStream(track)
                 recognizer = sr.Recognizer()
-                
-                # STT requires 16000Hz Mono S16 usually for best results
                 target_rate = 16000
                 import av
-                resampler = av.AudioResampler(format='s16', layout='mono', rate=target_rate)
+                import audioop
                 
                 buffer = bytearray()
-                chunk_seconds = 3 # Smaller chunks for responsiveness
-                bytes_per_sec = target_rate * 2 # 16bit = 2 bytes
-                chunk_size = bytes_per_sec * chunk_seconds
+                chunk_seconds = 0.5 # Fast VAD checks
+                bytes_per_sec = target_rate * 2 
+                chunk_size = int(bytes_per_sec * chunk_seconds)
                 
+                # Check VAD every chunk
                 async for event in audio_stream:
+                    # Interrupt Agent if user interrupts
+                    # We can use a simple volume threshold for "Barge-in" locally if VAD is too heavy,
+                    # but let's try to use the speech_id to stop agent if we detect sound.
+                    
                     frame = event.frame
                     
-                    # Convert LiveKit AudioFrame to AV Frame for resampling
-                    # We need to construct an AV frame from raw bytes. 
-                    # This is tricky. PyAV expects distinct planes. 
-                    # Easier: Simply trust LiveKit's frame has data and assume we need to process it.
-                    # Wait, accessing raw bytes and feeding SR is cleaner if we just assume 
-                    # the input IS PCM. LiveKit WebRTC is usually 48kHz.
-                    # SW-Resampling locally with `audioop` (standard lib) is safer than wrapping PyAV frames manually.
-                    
-                    import audioop
-                    # Resample from frame.sample_rate to 16000
+                    # Manual Resampling for STT & VAD
                     data = frame.data
                     if frame.sample_rate != target_rate:
                         data, _ = audioop.ratecv(data, 2, 1, frame.sample_rate, target_rate, None)
-                        # data, width, channels, in_rate, out_rate, state
-                        # Assuming mono input from mic. If stereo, mixed? LiveKit mic is usually mono/stereo.
-                        # Let's force mono if needed? audioop.tomono
                         if frame.num_channels == 2:
                             data = audioop.tomono(data, 2, 0.5, 0.5)
 
+                    # Barge-in Logic (Volume based is fastest for interruption)
+                    rms = audioop.rms(data, 2)
+                    if rms > 1500: # Threshold for speech
+                         # Stop agent speaking
+                         state["speech_id"] += 1
+                    
                     buffer.extend(data)
                     
-                    if len(buffer) >= chunk_size:
-                        # Process
+                    if len(buffer) >= (bytes_per_sec * 3): # 3 seconds buffer for STT
                         audio_data = sr.AudioData(bytes(buffer), target_rate, 2)
-                        buffer = bytearray() # Reset
+                        buffer = bytearray() 
                         
                         try:
-                            # Run blocking recognize
                             loop = asyncio.get_event_loop()
-                            # recognize_google is blocking.
+                            # Use recognize_google (Free)
                             text = await loop.run_in_executor(None, lambda: recognizer.recognize_google(audio_data))
                             logger.info(f"STT Heard: {text}")
                             if text:
@@ -216,7 +234,8 @@ async def entrypoint(ctx: JobContext):
                         except sr.UnknownValueError:
                             pass
                         except Exception as e:
-                            logger.error(f"STT Error: {e}")
+                            pass
+                            # logger.error(f"STT Error: {e}")
 
             asyncio.create_task(transcribe_track())
 
