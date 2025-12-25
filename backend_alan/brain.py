@@ -1,7 +1,7 @@
 import logging
 import json
 import os
-import os
+
 # import google.generativeai as genai # Deprecated
 from enum import Enum
 from memory import AlanMemory
@@ -58,20 +58,26 @@ class AlanBrain:
     async def _think_fast(self, text: str) -> str:
         """Standard single-pass response (Gemini Flash)."""
         history = self.memory.get_recent_history(limit=5)
+        personality = self.memory.get_personality()
+        prefs = self.memory.get_long_term("user_preferences")
         
         system_prompt = (
             "You are ALAN. "
             "Role: Advanced AI Assistant. "
-            "Traits: Precise, Concise, Adaptive. "
+            f"Traits: {json.dumps(personality)}. "
+            f"User Preferences: {json.dumps(prefs)}. "
             f"Context: {len(history)} recent messages. "
-            "Instruction: Reply directly to the user."
+            "Instruction: Reply directly to the user, adhering to your personality traits."
         )
         return await self._generate(system_prompt, text)
 
     async def _think_deep(self, text: str) -> str:
         """Chain-of-Thought / Planning Mode."""
+        personality = self.memory.get_personality()
+        
         system_prompt = (
             "You are ALAN in DEEP THINKING MODE. "
+            f"Traits: {json.dumps(personality)}. "
             "Instruction: First, analyze the user's request step-by-step. "
             "Identify the core problem, any constraints, and potential strategies. "
             "Then, provide a comprehensive solution. "
