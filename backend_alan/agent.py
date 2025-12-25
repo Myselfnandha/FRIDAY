@@ -10,8 +10,14 @@ from livekit.plugins import google
 # Import Brain and Input Processor
 from brain import AlanBrain
 from input_processor import input_processor, InputSource
-import torch
+try:
+    import torch
+except ImportError:
+    torch = None
+    logger.warning("Torch not found. VAD fallback capabilities will be limited.")
+
 import numpy as np
+from PIL import Image
 
 # ... (rest of imports)
 
@@ -140,27 +146,42 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.error(f"EdgeTTS Failed: {e}")
 
+    def convert_frame_to_image(frame) -> Image.Image:
+        """Converts a LiveKit VideoFrame to a PIL Image."""
+        try:
+            # Convert to RGBA
+            # Note: The availability of 'convert' depends on the LiveKit SDK version.
+            # Assuming recent SDK where convert returns a new buffer/frame with specific format.
+            argb_frame = frame.convert(rtc.VideoBufferType.RGBA)
+            
+            # Create PIL Image
+            img = Image.frombytes("RGBA", (argb_frame.width, argb_frame.height), argb_frame.data)
+            return img.convert("RGB")
+        except Exception as e:
+            logger.error(f"Frame conversion failed: {e}")
+            return None
+
     # Helper to process text
     async def process_text_input(text: str, source: str = "text"):
         # Stop any current speech immediately when thinking starts
         state["speech_id"] += 1 
         
         # VISION CHECK
+        images_to_send = []
         # If user implies seeing something, and we have a frame
         if "see" in text.lower() or "look" in text.lower() or "screen" in text.lower():
             if state.get("latest_frame"):
-                # In a full visual agent, we'd send the image to Gemini.
-                # Here we just acknowledge it in the metadata for the brain.
-                logger.info("Attaching visual context to request.")
-                text += " [Visual Context Available: User is sharing video/screen]"
-                # TODO: Implement actual frame -> base64 -> Gemini call in Brain
+                logger.info("Processing visual context for Brain...")
+                pil_img = convert_frame_to_image(state["latest_frame"])
+                if pil_img:
+                    images_to_send = [pil_img]
         
         # Create Unified Event
         input_type = InputSource.TEXT if source == "text" else InputSource.VOICE
         event = input_processor.process(input_type, text)
         
         # Brain thinks about the event
-        response_text = await brain.think(event, ctx)
+        response_text = await brain.think(event, ctx, images=images_to_send)
         
         reply = {"type": "agent_chat", "text": response_text}
         await ctx.room.local_participant.publish_data(json.dumps(reply).encode("utf-8"), reliable=True)
@@ -237,7 +258,7 @@ async def entrypoint(ctx: JobContext):
                 # State
                 speaking = False
                 silence_frames = 0
-                required_silence_frames = 15 # ~0.5s if frame is 30ms
+                required_silence_frames = 10 # Optimized: ~0.3s silence
 
                 async for event in audio_stream:
                     state["speech_id"] += 0 # Keep checking for interruption externally?
@@ -258,7 +279,10 @@ async def entrypoint(ctx: JobContext):
                     
                     speech_prob = 0
                     try:
-                        speech_prob = model(torch.from_numpy(audio_float32), target_rate).item()
+                        if torch:
+                            speech_prob = model(torch.from_numpy(audio_float32), target_rate).item()
+                        else:
+                            raise ImportError("Torch not available")
                     except:
                         # Fallback to RMS
                         if audioop.rms(data, 2) > 500:

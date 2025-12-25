@@ -7,3 +7,5 @@ av
 openai
 edge-tts
 SpeechRecognition
+Pillow
+torch
