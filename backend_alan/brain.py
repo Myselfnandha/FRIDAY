@@ -29,57 +29,85 @@ class AlanBrain:
         """
         # 0. Unpack Input
         if hasattr(user_input, "normalized"):
-            # It's a UnifiedInputEvent
             text = user_input.normalized
             source = user_input.source
-            # Check for critical priority
-            # if user_input.priority == "critical": ...
+            # Check flags/intent for Mode
+            # Simple heuristic: if "deeply" or "analyze" in text, user DEEP mode
+            if "deep" in text.lower() or "plan" in text.lower():
+                self.mode = "deep"
+            elif "debug" in text.lower() or "error" in text.lower():
+                self.mode = "debug"
+            else:
+                self.mode = "fast"
         else:
-            # Legacy string support
             text = str(user_input)
             source = "text"
+            self.mode = "fast"
 
-        # 1. Perception & Memory Recall
-        logger.info(f"Thinking about: {text} [{source}]")
+        logger.info(f"Thinking [{self.mode.upper()}] about: {text} [{source}]")
         self.memory.log_interaction("user", text)
-        
-        history = self.memory.get_recent_history(limit=5)
-        user_prefs = self.memory.get_context("user_preferences")
-        
-        # 2. Planning (Simulated)
-        # In a real expanded version, this would call a 'Planner' agent
-        plan = "Direct Response"
-        if "analyze" in text.lower() or "scan" in text.lower():
-            plan = "Decompose -> Scan -> Report"
-        
-        logger.info(f"Plan formulated: {plan}")
 
-        # 3. Context Construction
-        system_prompt = (
-            "You are ALAN (Autonomous Logical Agent Network). "
-            "Role: Advanced AI Assistant. "
-            f"Current Plan: {plan}. "
-            f"Context: {len(history)} recent messages. "
-            "Traits: Logical, Proactive, Brutally Honest. "
-            "Instruction: Reply to the user input based on the plan and context."
-        )
+        # Dispatch
+        if self.mode == "deep":
+            return await self._think_deep(text)
+        elif self.mode == "debug":
+            return await self._think_debug(text)
+        else:
+            return await self._think_fast(text)
+
+    async def _think_fast(self, text: str) -> str:
+        """Standard single-pass response (Gemini Flash)."""
+        history = self.memory.get_recent_history(limit=5)
         
-        # 4. Action (Generate Response)
+        system_prompt = (
+            "You are ALAN. "
+            "Role: Advanced AI Assistant. "
+            "Traits: Precise, Concise, Adaptive. "
+            f"Context: {len(history)} recent messages. "
+            "Instruction: Reply directly to the user."
+        )
+        return await self._generate(system_prompt, text)
+
+    async def _think_deep(self, text: str) -> str:
+        """Chain-of-Thought / Planning Mode."""
+        system_prompt = (
+            "You are ALAN in DEEP THINKING MODE. "
+            "Instruction: First, analyze the user's request step-by-step. "
+            "Identify the core problem, any constraints, and potential strategies. "
+            "Then, provide a comprehensive solution. "
+            "Output Format: "
+            "**Analysis**: ... "
+            "**Plan**: ... "
+            "**Solution**: ..."
+        )
+        return await self._generate(system_prompt, text)
+
+    async def _think_debug(self, text: str) -> str:
+        """Forensic Mode."""
+        system_prompt = (
+            "You are ALAN in DEBUG MODE. "
+            "Instruction: Analyze the input as a technical problem. "
+            "Look for keywords indicating errors, crashes, or anomalies. "
+            "Suggest potential fixes or diagnostic steps. "
+            "Be terse and technical."
+        )
+        return await self._generate(system_prompt, text)
+
+    async def _generate(self, system_prompt: str, user_input: str) -> str:
+        """Shared Generation Logic with Fallback."""
         try:
             from google import genai
-            # PRIORITIZE KEY 1
             api_key = os.getenv("GOOGLE_API_KEY1") or os.getenv("GOOGLE_API_KEY")
             client = genai.Client(api_key=api_key)
             
             response = client.models.generate_content(
                 model="gemini-2.0-flash-exp",
-                contents=f"{system_prompt}\n\nUser: {text}"
+                contents=f"{system_prompt}\n\nUser: {user_input}"
             )
-            
             text_response = response.text
             self.memory.log_interaction("assistant", text_response)
             return text_response
-
+            
         except Exception as google_e:
             logger.warning(f"Google Brain error: {google_e}. Switch to OpenRouter...")
             try:
@@ -98,7 +126,7 @@ class AlanBrain:
                     model="meta-llama/llama-3.2-3b-instruct:free",
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": text}
+                        {"role": "user", "content": user_input}
                     ]
                 )
                 text_response = completion.choices[0].message.content
