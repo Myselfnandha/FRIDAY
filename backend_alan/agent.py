@@ -156,7 +156,7 @@ async def entrypoint(ctx: JobContext):
     @ctx.room.on("track_subscribed")
     def on_track_subscribed(track: rtc.Track, publication: rtc.TrackPublication, participant: rtc.RemoteParticipant):
         if track.kind == rtc.TrackKind.KIND_VIDEO:
-            logger.info(f"Visual Input Detected: {track.name} ({track.source})")
+            logger.info(f"Visual Input Detected: {track.name} ({publication.source})")
             return
 
         if track.kind == rtc.TrackKind.KIND_AUDIO and not state["active"]:
