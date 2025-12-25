@@ -229,6 +229,11 @@ async def entrypoint(ctx: JobContext):
                             # Use recognize_google (Free)
                             text = await loop.run_in_executor(None, lambda: recognizer.recognize_google(audio_data))
                             logger.info(f"STT Heard: {text}")
+                            
+                            # Publish Live Caption
+                            caption_msg = {"type": "transcription", "text": text, "is_final": True, "participant": "user"}
+                            await ctx.room.local_participant.publish_data(json.dumps(caption_msg).encode("utf-8"), reliable=True)
+
                             if text:
                                 await process_text_input(text, source="voice")
                         except sr.UnknownValueError:
