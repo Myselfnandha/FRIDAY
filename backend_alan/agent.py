@@ -7,8 +7,14 @@ from livekit.agents import JobContext, WorkerOptions, cli, tts, stt, llm, vad
 from livekit import agents, rtc
 from livekit.plugins import google
 
-# Import Brain
+# Import Brain and Input Processor
 from brain import AlanBrain
+from input_processor import input_processor, InputSource
+
+# ... (rest of imports)
+
+# ...
+
 
 load_dotenv()
 
@@ -121,8 +127,14 @@ async def entrypoint(ctx: JobContext):
             logger.error(f"EdgeTTS Failed: {e}")
 
     # Helper to process text
-    async def process_text_input(text: str):
-        response_text = await brain.think(text, ctx)
+    async def process_text_input(text: str, source: str = "text"):
+        # Create Unified Event
+        input_type = InputSource.TEXT if source == "text" else InputSource.VOICE
+        event = input_processor.process(input_type, text)
+        
+        # Brain thinks about the event
+        response_text = await brain.think(event, ctx)
+        
         reply = {"type": "agent_chat", "text": response_text}
         await ctx.room.local_participant.publish_data(json.dumps(reply).encode("utf-8"), reliable=True)
         await speak_text(response_text)
@@ -136,7 +148,7 @@ async def entrypoint(ctx: JobContext):
             if payload.get('type') == 'user_chat':
                 user_text = payload.get('text')
                 if user_text:
-                    asyncio.create_task(process_text_input(user_text))
+                    asyncio.create_task(process_text_input(user_text, source="text"))
         except Exception as e:
             logger.error(f"Error handling data: {e}")
 
@@ -200,7 +212,7 @@ async def entrypoint(ctx: JobContext):
                             text = await loop.run_in_executor(None, lambda: recognizer.recognize_google(audio_data))
                             logger.info(f"STT Heard: {text}")
                             if text:
-                                await process_text_input(text)
+                                await process_text_input(text, source="voice")
                         except sr.UnknownValueError:
                             pass
                         except Exception as e:

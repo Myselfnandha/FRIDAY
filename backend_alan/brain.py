@@ -22,13 +22,26 @@ class AlanBrain:
         self.mode = "fast" 
         self.memory = AlanMemory()
     
-    async def think(self, user_input: str, agent_ctx) -> str:
+    async def think(self, user_input, agent_ctx) -> str:
         """
         Core reasoning loop.
+        Accepts: str OR UnifiedInputEvent
         """
+        # 0. Unpack Input
+        if hasattr(user_input, "normalized"):
+            # It's a UnifiedInputEvent
+            text = user_input.normalized
+            source = user_input.source
+            # Check for critical priority
+            # if user_input.priority == "critical": ...
+        else:
+            # Legacy string support
+            text = str(user_input)
+            source = "text"
+
         # 1. Perception & Memory Recall
-        logger.info(f"Thinking about: {user_input}")
-        self.memory.log_interaction("user", user_input)
+        logger.info(f"Thinking about: {text} [{source}]")
+        self.memory.log_interaction("user", text)
         
         history = self.memory.get_recent_history(limit=5)
         user_prefs = self.memory.get_context("user_preferences")
@@ -36,7 +49,7 @@ class AlanBrain:
         # 2. Planning (Simulated)
         # In a real expanded version, this would call a 'Planner' agent
         plan = "Direct Response"
-        if "analyze" in user_input.lower() or "scan" in user_input.lower():
+        if "analyze" in text.lower() or "scan" in text.lower():
             plan = "Decompose -> Scan -> Report"
         
         logger.info(f"Plan formulated: {plan}")
@@ -52,9 +65,6 @@ class AlanBrain:
         )
         
         # 4. Action (Generate Response)
-        # Using standard Gemini Flash for the "Thinking" / Text-Chat layer
-        # 4. Action (Generate Response)
-        # 4. Action (Generate Response)
         try:
             from google import genai
             # PRIORITIZE KEY 1
@@ -63,7 +73,7 @@ class AlanBrain:
             
             response = client.models.generate_content(
                 model="gemini-2.0-flash-exp",
-                contents=f"{system_prompt}\n\nUser: {user_input}"
+                contents=f"{system_prompt}\n\nUser: {text}"
             )
             
             text_response = response.text
@@ -88,7 +98,7 @@ class AlanBrain:
                     model="meta-llama/llama-3.2-3b-instruct:free",
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_input}
+                        {"role": "user", "content": text}
                     ]
                 )
                 text_response = completion.choices[0].message.content
