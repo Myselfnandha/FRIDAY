@@ -6,6 +6,7 @@ import { PortfolioLayout } from '@/components/PortfolioLayout';
 import { Sidebar } from '@/components/Sidebar';
 import { IntroSection } from '@/components/IntroSection';
 import { ALANInterface } from '@/components/ALANInterface';
+import { SettingsPanel } from '@/components/SettingsPanel';
 
 export default function Home() {
     const [token, setToken] = useState('');
@@ -67,6 +68,10 @@ export default function Home() {
                             </div>
                         )}
                     </div>
+                )}
+
+                {activeTab === 'settings' && (
+                    <SettingsPanel />
                 )}
 
                 {/* Placeholders for other tabs */}

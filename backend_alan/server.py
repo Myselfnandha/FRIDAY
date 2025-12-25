@@ -2,8 +2,11 @@ import os
 import json
 import logging
 import threading
+import sqlite3
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from livekit import api
+
+from memory import AlanMemory
 
 logger = logging.getLogger("alan.server")
 
@@ -26,8 +29,13 @@ class AlanRequestHandler(SimpleHTTPRequestHandler):
         if self.path.startswith("/api/token"):
             self.handle_token_request()
             return
+            
+        # 2. API: Settings
+        if self.path.startswith("/api/settings"):
+            self.handle_get_settings()
+            return
 
-        # 2. Static Files (Default behavior)
+        # 3. Static Files (Default behavior)
         # Check if file exists, if not serve index.html (SPA Fallback)
         path = self.translate_path(self.path)
         
@@ -47,6 +55,52 @@ class AlanRequestHandler(SimpleHTTPRequestHandler):
                 self.path = "/index.html"
         
         super().do_GET()
+
+    def do_POST(self):
+        if self.path.startswith("/api/settings"):
+            self.handle_post_settings()
+            return
+
+    def handle_get_settings(self):
+        try:
+            mem = AlanMemory()
+            personality = mem.get_personality()
+            # Also get other config if we had it
+            
+            self.send_json(personality)
+        except Exception as e:
+            logger.error(f"Get settings failed: {e}")
+            self.send_error(500, str(e))
+
+    def handle_post_settings(self):
+        try:
+            length = int(self.headers.get('content-length'))
+            field_data = self.rfile.read(length)
+            data = json.loads(field_data)
+            
+            mem = AlanMemory()
+            conn = sqlite3.connect(mem.db_path) # Direct access for simplicty or add method in memory.py
+            c = conn.cursor()
+            
+            # Update personality traits
+            for trait, value in data.items():
+                c.execute("INSERT OR REPLACE INTO personality (trait, current_value) VALUES (?, ?)", (trait, value))
+            
+            conn.commit()
+            conn.close()
+            
+            self.send_json({"status": "updated", "data": data})
+            
+        except Exception as e:
+            logger.error(f"Update settings failed: {e}")
+            self.send_error(500, str(e))
+
+    def send_json(self, data):
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode("utf-8"))
 
     def handle_token_request(self):
         try:

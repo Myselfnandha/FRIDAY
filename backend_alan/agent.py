@@ -219,22 +219,6 @@ async def entrypoint(ctx: JobContext):
             logger.info("Fallback Mode: Listening (Google Free API + Silero VAD)...")
             
             async def transcribe_track():
-                # Wrap with VAD
-                vad = silero.VAD.load()
-                # Create a VAD stream. Note: LiveKit Plugin Silero usage depends on version.
-                # Assuming standard plugin wrapping usually wraps the stream.
-                # For complexity, we will use the raw audio stream but ONLY process when volume/VAD triggers.
-                # Actually, simplest integration for raw audio is using Silero purely as a passive checker or 
-                # using the `VAD` class to filter frames.
-                
-                audio_stream = rtc.AudioStream(track)
-                recognizer = sr.Recognizer()
-                target_rate = 16000
-                import av
-                import audioop
-                
-                buffer = bytearray()
-            async def transcribe_track():
                 # VAD Setup
                 vad = silero.VAD.load()
                 model = vad
@@ -249,7 +233,6 @@ async def entrypoint(ctx: JobContext):
                 
                 # Audio Accumulation
                 speech_buffer = bytearray()
-                vad_buffer = [] # For VAD processing
                 
                 # State
                 speaking = False
@@ -272,12 +255,6 @@ async def entrypoint(ctx: JobContext):
                     # Silero expects float32 array
                     audio_int16 = np.frombuffer(data, dtype=np.int16)
                     audio_float32 = audio_int16.astype(np.float32) / 32768.0
-                    
-                    # We need chunks of 512, 1024, 1536 for Silero
-                    # LiveKit frame size varies. Simplest is Energy VAD for this fallback.
-                    # Or use the specialized VAD wrapper if available. 
-                    # Let's stick to Energy + ZCR for speed in Fallback if Silero fails, 
-                    # but try Silero first.
                     
                     speech_prob = 0
                     try:
@@ -331,11 +308,8 @@ async def entrypoint(ctx: JobContext):
                                     # Too short, discard
                                     speech_buffer = bytearray()
                         else:
-                            # Just noise/silence, ignore
+                            # Just noise/silence
                             pass
-
-            asyncio.create_task(transcribe_track())
-                            # logger.error(f"STT Error: {e}")
 
             asyncio.create_task(transcribe_track())
 

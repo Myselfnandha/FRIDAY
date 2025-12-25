@@ -14,6 +14,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         { id: 'home', icon: Home, label: 'Home' },
         { id: 'assistant', icon: Bot, label: 'ALAN AI' },
         { id: 'projects', icon: Code, label: 'Projects' },
+        { id: 'settings', icon: Terminal, label: 'Settings' },
         { id: 'about', icon: User, label: 'About' },
     ];
 
