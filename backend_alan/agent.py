@@ -10,6 +10,8 @@ from livekit.plugins import google
 # Import Brain and Input Processor
 from brain import AlanBrain
 from input_processor import input_processor, InputSource
+import torch
+import numpy as np
 
 # ... (rest of imports)
 
@@ -232,53 +234,107 @@ async def entrypoint(ctx: JobContext):
                 import audioop
                 
                 buffer = bytearray()
-                chunk_seconds = 0.5 # Fast VAD checks
-                bytes_per_sec = target_rate * 2 
-                chunk_size = int(bytes_per_sec * chunk_seconds)
+            async def transcribe_track():
+                # VAD Setup
+                vad = silero.VAD.load()
+                model = vad
                 
-                # Check VAD every chunk
+                audio_stream = rtc.AudioStream(track)
+                recognizer = sr.Recognizer()
+                target_rate = 16000
+                
+                import av
+                import audioop
+                import numpy as np
+                
+                # Audio Accumulation
+                speech_buffer = bytearray()
+                vad_buffer = [] # For VAD processing
+                
+                # State
+                speaking = False
+                silence_frames = 0
+                required_silence_frames = 15 # ~0.5s if frame is 30ms
+
                 async for event in audio_stream:
-                    # Interrupt Agent if user interrupts
-                    # We can use a simple volume threshold for "Barge-in" locally if VAD is too heavy,
-                    # but let's try to use the speech_id to stop agent if we detect sound.
+                    state["speech_id"] += 0 # Keep checking for interruption externally?
                     
                     frame = event.frame
                     
-                    # Manual Resampling for STT & VAD
+                    # Manual Resampling for STT & VAD (16kHz Mono)
                     data = frame.data
                     if frame.sample_rate != target_rate:
                         data, _ = audioop.ratecv(data, 2, 1, frame.sample_rate, target_rate, None)
                         if frame.num_channels == 2:
                             data = audioop.tomono(data, 2, 0.5, 0.5)
 
-                    # Barge-in Logic (Volume based is fastest for interruption)
-                    rms = audioop.rms(data, 2)
-                    if rms > 1500: # Threshold for speech
-                         # Stop agent speaking
-                         state["speech_id"] += 1
+                    # 1. Run VAD
+                    # Silero expects float32 array
+                    audio_int16 = np.frombuffer(data, dtype=np.int16)
+                    audio_float32 = audio_int16.astype(np.float32) / 32768.0
                     
-                    buffer.extend(data)
+                    # We need chunks of 512, 1024, 1536 for Silero
+                    # LiveKit frame size varies. Simplest is Energy VAD for this fallback.
+                    # Or use the specialized VAD wrapper if available. 
+                    # Let's stick to Energy + ZCR for speed in Fallback if Silero fails, 
+                    # but try Silero first.
                     
-                    if len(buffer) >= (bytes_per_sec * 3): # 3 seconds buffer for STT
-                        audio_data = sr.AudioData(bytes(buffer), target_rate, 2)
-                        buffer = bytearray() 
-                        
-                        try:
-                            loop = asyncio.get_event_loop()
-                            # Use recognize_google (Free)
-                            text = await loop.run_in_executor(None, lambda: recognizer.recognize_google(audio_data))
-                            logger.info(f"STT Heard: {text}")
-                            
-                            # Publish Live Caption
-                            caption_msg = {"type": "transcription", "text": text, "is_final": True, "participant": "user"}
-                            await ctx.room.local_participant.publish_data(json.dumps(caption_msg).encode("utf-8"), reliable=True)
+                    speech_prob = 0
+                    try:
+                        speech_prob = model(torch.from_numpy(audio_float32), target_rate).item()
+                    except:
+                        # Fallback to RMS
+                        if audioop.rms(data, 2) > 500:
+                            speech_prob = 0.8
+                    
+                    is_speech = speech_prob > 0.5
 
-                            if text:
-                                await process_text_input(text, source="voice")
-                        except sr.UnknownValueError:
+                    # 2. Logic
+                    if is_speech:
+                        if not speaking:
+                            logger.info("VAD: Speech Started")
+                            # Interrupt Agent
+                            state["speech_id"] += 1
+                        speaking = True
+                        silence_frames = 0
+                        speech_buffer.extend(data)
+                    else:
+                        if speaking:
+                            silence_frames += 1
+                            speech_buffer.extend(data) # Capture trailing silence
+                            
+                            if silence_frames > required_silence_frames:
+                                # END OF SPEECH DETECTED
+                                logger.info("VAD: End of Speech")
+                                speaking = False
+                                silence_frames = 0
+                                
+                                # Process Buffer
+                                if len(speech_buffer) > 4000: # Min duration ~0.1s
+                                    audio_data = sr.AudioData(bytes(speech_buffer), target_rate, 2)
+                                    speech_buffer = bytearray()
+                                    
+                                    try:
+                                        loop = asyncio.get_event_loop()
+                                        text = await loop.run_in_executor(None, lambda: recognizer.recognize_google(audio_data))
+                                        
+                                        # Publish Live Caption
+                                        caption_msg = {"type": "transcription", "text": text, "is_final": True, "participant": "user"}
+                                        await ctx.room.local_participant.publish_data(json.dumps(caption_msg).encode("utf-8"), reliable=True)
+
+                                        if text:
+                                            logger.info(f"STT Heard: {text}")
+                                            await process_text_input(text, source="voice")
+                                    except:
+                                        pass
+                                else:
+                                    # Too short, discard
+                                    speech_buffer = bytearray()
+                        else:
+                            # Just noise/silence, ignore
                             pass
-                        except Exception as e:
-                            pass
+
+            asyncio.create_task(transcribe_track())
                             # logger.error(f"STT Error: {e}")
 
             asyncio.create_task(transcribe_track())
