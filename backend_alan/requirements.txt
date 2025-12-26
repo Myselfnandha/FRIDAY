@@ -9,3 +9,4 @@ edge-tts
 SpeechRecognition
 Pillow
 torch
+livekit-plugins-silero
