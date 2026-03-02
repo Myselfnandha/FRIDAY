@@ -1,15 +1,15 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 # ============================================
 # F.R.I.D.A.Y. — Start/Stop Toggle Script
-# Run: ./friday.sh        → Start Friday
-# Press Ctrl+C             → Stop Friday
+# Runs in Termux AND Ubuntu (Proot)
 # ============================================
 
-FRIDAY_DIR="$HOME/friday"
+# Use current directory or home folder
+FRIDAY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_PID=""
 TUNNEL_PID=""
 
-# Colors
+# Colors (work in most terminals)
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -20,20 +20,12 @@ cleanup() {
     echo ""
     echo -e "${RED}🛑 Shutting down Friday...${NC}"
     
-    # Kill backend
-    if [ -n "$BACKEND_PID" ]; then
-        kill "$BACKEND_PID" 2>/dev/null
-        wait "$BACKEND_PID" 2>/dev/null
-    fi
+    # Kill background processes
+    [ -n "$BACKEND_PID" ] && kill "$BACKEND_PID" 2>/dev/null
+    [ -n "$TUNNEL_PID" ] && kill "$TUNNEL_PID" 2>/dev/null
     
-    # Kill tunnel
-    if [ -n "$TUNNEL_PID" ]; then
-        kill "$TUNNEL_PID" 2>/dev/null
-        wait "$TUNNEL_PID" 2>/dev/null
-    fi
-    
-    # Release wake lock
-    termux-wake-unlock 2>/dev/null || true
+    # Release wake lock ONLY if in Termux
+    [ -f "/data/data/com.termux/files/usr/bin/termux-wake-unlock" ] && termux-wake-unlock 2>/dev/null || true
     
     echo -e "${DIM}Friday is offline. Goodbye, Boss.${NC}"
     exit 0
@@ -50,61 +42,72 @@ echo "  ██║     ██║  ██║██║██████╔╝█�
 echo "  ╚═╝     ╚═╝  ╚═╝╚═╝╚═════╝ ╚═╝  ╚═╝   ╚═╝   "
 echo -e "${NC}"
 
-# --- 1. Keep phone awake ---
-termux-wake-lock 2>/dev/null || true
+# --- 1. Termux Wake Lock ---
+if [ -f "/data/data/com.termux/files/usr/bin/termux-wake-lock" ]; then
+    termux-wake-lock 2>/dev/null || true
+fi
 
-# --- 2. Pull latest code ---
-echo -e "${DIM}[1/3] Pulling latest from GitHub...${NC}"
+# --- 2. Update Code ---
+echo -e "${DIM}[1/3] Updating local code...${NC}"
 cd "$FRIDAY_DIR"
-git pull --quiet 2>/dev/null && echo -e "${GREEN}  ✅ Code updated${NC}" || echo -e "${DIM}  ⚠️  Skipped (no git remote or offline)${NC}"
+git pull --quiet 2>/dev/null && echo -e "${GREEN}  ✅ Synchronized${NC}" || echo -e "${DIM}  ⚠️  Offline or local changes only${NC}"
 
 # --- 3. Start Backend ---
 echo -e "${DIM}[2/3] Starting Friday backend...${NC}"
 cd "$FRIDAY_DIR/backend"
 
-# Use venv if available, otherwise system python
-if [ -f "venv/bin/python" ]; then
+# Smart Python detection (venv vs system)
+if [ -f "venv/bin/python3" ]; then
+    PYTHON="venv/bin/python3"
+elif [ -f "venv/bin/python" ]; then
     PYTHON="venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON="python3"
 else
     PYTHON="python"
 fi
 
-$PYTHON main.py &
+$PYTHON main.py > ../backend.log 2>&1 &
 BACKEND_PID=$!
-sleep 3
+sleep 4
 
-# Check if backend started
+# Check status
 if kill -0 "$BACKEND_PID" 2>/dev/null; then
     echo -e "${GREEN}  ✅ Backend running (PID: $BACKEND_PID)${NC}"
 else
-    echo -e "${RED}  ❌ Backend failed to start. Check your .env file.${NC}"
-    cat "$FRIDAY_DIR/backend/.env" 2>/dev/null | grep -v "KEY" | head -5
+    echo -e "${RED}  ❌ Backend failed to start.${NC}"
+    echo "Last logs:"
+    tail -n 10 ../backend.log 2>/dev/null
     exit 1
 fi
 
 # --- 4. Start Cloudflare Tunnel ---
 echo -e "${DIM}[3/3] Opening Cloudflare Tunnel...${NC}"
-echo ""
 
-# Capture the tunnel URL from cloudflared output
-cloudflared tunnel --url http://localhost:8000 2>&1 &
+# Check for cloudflared binary (Host vs Proot)
+CLOUDFLARED_BIN=$(command -v cloudflared 2>/dev/null || which cloudflared 2>/dev/null)
+
+if [ -z "$CLOUDFLARED_BIN" ]; then
+     echo -e "${RED}  ❌ Error: cloudflared not found. Please install it on your device/proot.${NC}"
+     cleanup
+fi
+
+$CLOUDFLARED_BIN tunnel --url http://localhost:8000 2>&1 &
 TUNNEL_PID=$!
 
-# Wait for tunnel URL to appear
+# Wait for URL to appear from logs
 sleep 5
 echo ""
 echo -e "${GREEN}============================================${NC}"
 echo -e "${GREEN}  ✅ F.R.I.D.A.Y. is ONLINE${NC}"
 echo -e "${GREEN}============================================${NC}"
 echo ""
-echo -e "  ${CYAN}Look above for your public URL:${NC}"
-echo -e "  ${DIM}(Something like https://xxx-yyy.trycloudflare.com)${NC}"
-echo ""
-echo -e "  Open that URL in ${CYAN}any browser${NC} on ${CYAN}any device${NC}"
+echo -e "  ${CYAN}Check your Public URL above!${NC}"
+echo -e "  ${DIM}(e.g. https://xxx-yyy.trycloudflare.com)${NC}"
 echo ""
 echo -e "  ${DIM}Press Ctrl+C to stop Friday${NC}"
 echo ""
 
-# Wait for either process to exit
+# Keep alive
 wait "$TUNNEL_PID" "$BACKEND_PID" 2>/dev/null
 cleanup
