@@ -18,8 +18,8 @@ pkg upgrade -y
 # --- 2. Install Dependencies ---
 echo ""
 echo "📦 [2/5] Installing Python, Git, Cloudflare, and Build Tools..."
-# Added clang, rust, and make for native extension building (pydantic-core, etc.)
-pkg install -y python git cloudflared termux-services clang rust make
+# Added clang, rust, make, and binutils for native extension building
+pkg install -y python git cloudflared termux-services clang rust make binutils
 
 # Keep Termux awake in background
 termux-wake-lock 2>/dev/null || true
@@ -48,8 +48,14 @@ echo ""
 echo "🐍 [4/5] Installing Python packages..."
 cd "$FRIDAY_DIR/backend"
 
+# Fix for maturin: Set Android API level
+export ANDROID_API_LEVEL=24
+
 python -m venv venv 2>/dev/null || python -m ensurepip
 source venv/bin/activate || . venv/bin/activate
+
+# Ensure pip is up to date for better build support
+pip install --upgrade pip
 
 # Install pydantic-core specifically first as it often needs compilation
 echo "⚡ Building native extensions (this may take a few minutes)..."
