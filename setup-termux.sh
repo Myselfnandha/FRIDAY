@@ -17,9 +17,9 @@ pkg upgrade -y
 
 # --- 2. Install Dependencies ---
 echo ""
-echo "📦 [2/5] Installing Python, Git, Cloudflare, and Build Tools..."
-# Added clang, rust, make, and binutils for native extension building
-pkg install -y python git cloudflared termux-services clang rust make binutils
+echo "📦 [2/5] Installing Python, Git, Cloudflare..."
+# Simplified: No longer need clang/rust/make for fast-track install
+pkg install -y python git cloudflared termux-services
 
 # Keep Termux awake in background
 termux-wake-lock 2>/dev/null || true
@@ -45,22 +45,18 @@ fi
 
 # --- 4. Install Python Dependencies ---
 echo ""
-echo "🐍 [4/5] Installing Python packages..."
+echo "🐍 [4/5] Installing Python packages (Fast Mode)..."
 cd "$FRIDAY_DIR/backend"
-
-# Fix for maturin: Set Android API level
-export ANDROID_API_LEVEL=24
 
 python -m venv venv 2>/dev/null || python -m ensurepip
 source venv/bin/activate || . venv/bin/activate
 
-# Ensure pip is up to date for better build support
+# Fast-track pydantic-core using pre-built wheels for Termux/Android
+echo "⚡ Installing pre-built native extensions..."
 pip install --upgrade pip
+pip install --no-cache-dir pydantic-core --extra-index-url https://pypi.debian.net/pydantic-core/
 
-# Install pydantic-core specifically first as it often needs compilation
-echo "⚡ Building native extensions (this may take a few minutes)..."
-pip install --no-cache-dir pydantic-core
-
+# Now install the rest of the requirements
 pip install --no-cache-dir -r requirements.txt
 
 # --- 5. Configure API Keys ---
