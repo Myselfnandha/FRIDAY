@@ -17,8 +17,9 @@ pkg upgrade -y
 
 # --- 2. Install Dependencies ---
 echo ""
-echo "📦 [2/5] Installing Python, Git, Cloudflare..."
-pkg install -y python git cloudflared termux-services
+echo "📦 [2/5] Installing Python, Git, Cloudflare, and Build Tools..."
+# Added clang, rust, and make for native extension building (pydantic-core, etc.)
+pkg install -y python git cloudflared termux-services clang rust make
 
 # Keep Termux awake in background
 termux-wake-lock 2>/dev/null || true
@@ -48,6 +49,12 @@ echo "🐍 [4/5] Installing Python packages..."
 cd "$FRIDAY_DIR/backend"
 
 python -m venv venv 2>/dev/null || python -m ensurepip
+source venv/bin/activate || . venv/bin/activate
+
+# Install pydantic-core specifically first as it often needs compilation
+echo "⚡ Building native extensions (this may take a few minutes)..."
+pip install --no-cache-dir pydantic-core
+
 pip install --no-cache-dir -r requirements.txt
 
 # --- 5. Configure API Keys ---
