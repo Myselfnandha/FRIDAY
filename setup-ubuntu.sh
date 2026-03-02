@@ -10,8 +10,8 @@ echo "🤖 F.R.I.D.A.Y. — Ubuntu/Proot Setup"
 echo "======================================"
 
 # --- 1. Install Proot-Distro ---
-echo "📦 [1/4] Installing Proot-Distro in Termux..."
-pkg update -confirm
+echo "📦 [1/4] Updating packages and installing Proot-Distro..."
+pkg update -y
 pkg install -y proot-distro git cloudflared termux-services
 
 # --- 2. Install Ubuntu ---
@@ -35,7 +35,6 @@ cd ~
 if [ -d "friday" ]; then
     cd friday && git pull
 else
-    # Replace with your actual repo URL if needed
     git clone https://github.com/Myselfnandha/Clawbot.git friday
 fi
 
@@ -55,7 +54,7 @@ proot-distro login ubuntu -- bash -c "$UBUNTU_SETUP"
 echo ""
 echo "🚀 [4/4] Creating the Ubuntu start script..."
 
-cat > ../start-friday-ubuntu.sh << 'EOF'
+cat > start-friday-ubuntu.sh << 'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 # This script starts Friday inside the Ubuntu proot environment
 
@@ -64,10 +63,11 @@ echo "Starting F.R.I.D.A.Y. (Ubuntu Mode)..."
 # Release wake lock
 termux-wake-lock 2>/dev/null || true
 
+# Start Friday inside Ubuntu
 proot-distro login ubuntu -- bash -c "cd ~/friday && ./friday.sh"
 EOF
 
-chmod +x ../start-friday-ubuntu.sh
+chmod +x start-friday-ubuntu.sh
 
 echo ""
 echo "============================================"
