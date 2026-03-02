@@ -24,6 +24,16 @@ termux-wake-lock 2>/dev/null || true
 # --- 2. Create the Autostart Logic INSIDE Ubuntu ---
 echo "🐍 [2/4] Injecting automation logic into Ubuntu..."
 
+# Correct paths for copying .env from Host to Guest
+TERMUX_ENV="$HOME/friday/backend/.env"
+UBUNTU_ENV_DIR="/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/root/friday/backend"
+
+if [ -f "$TERMUX_ENV" ]; then
+    echo "🔑 Copying API keys from Termux to Ubuntu..."
+    mkdir -p "$UBUNTU_ENV_DIR"
+    cp "$TERMUX_ENV" "$UBUNTU_ENV_DIR/.env"
+fi
+
 UBUNTU_SCRIPT=$(cat << 'EOF'
 set -e
 # Update Ubuntu packages
@@ -51,16 +61,10 @@ fi
 source venv/bin/activate
 pip install --upgrade pip
 
-# Auto-update dependencies ONLY if git pull actually updated files or requirements changed
-if [[ "$GIT_STATUS" != "Already up to date." ]]; then
-    echo "⚡ Dependencies changed, updating packages..."
+# SMART INSTALL: Install if git updated OR if venv is empty/broken
+if [[ "$GIT_STATUS" != "Already up to date." ]] || ! pip show uvicorn >/dev/null 2>&1; then
+    echo "⚡ Ensuring all dependencies are installed..."
     pip install --no-cache-dir -r requirements.txt
-fi
-
-# Final Check: .env conversion (Copying from Host to Guest if possible)
-if [ ! -f .env ]; then
-    echo "⚠️  WARNING: .env file missing in Ubuntu!"
-    echo "Attempting to find it in host..."
 fi
 
 # Start Friday via the universal script
