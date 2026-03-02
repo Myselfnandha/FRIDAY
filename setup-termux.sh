@@ -17,9 +17,9 @@ pkg upgrade -y
 
 # --- 2. Install Dependencies ---
 echo ""
-echo "📦 [2/5] Installing Python, Git, Cloudflare, and Build Tools..."
-# Restored: clang, rust, binutils are needed even just to evaluate/build wheels on some platforms
-pkg install -y python git cloudflared termux-services clang rust make binutils
+echo "📦 [2/5] Installing Python, Git, and Cloudflare..."
+# Native build tools (rust, clang) removed to save space/time since we'll use pre-built wheels
+pkg install -y python git cloudflared termux-services
 
 # Keep Termux awake in background
 termux-wake-lock 2>/dev/null || true
@@ -45,21 +45,25 @@ fi
 
 # --- 4. Install Python Dependencies ---
 echo ""
-echo "🐍 [4/5] Installing Python packages..."
+echo "🐍 [4/5] Installing Python packages (ULTRA-FAST MODE)..."
 cd "$FRIDAY_DIR/backend"
-
-# CRITICAL FIX for Termux/Maturin: Set Android API level
-export ANDROID_API_LEVEL=24
 
 python -m venv venv 2>/dev/null || python -m ensurepip
 source venv/bin/activate || . venv/bin/activate
 
-# Ensure pip is up to date for better build support
+# Upgrade pip for better wheel support
 pip install --upgrade pip
 
-# Fast-track pydantic-core using pre-built wheels for Termux/Android
-echo "⚡ Installing native extensions..."
-pip install --no-cache-dir pydantic-core --extra-index-url https://pypi.debian.net/pydantic-core/ || pip install --no-cache-dir pydantic-core
+# ULTRA-FAST: Direct wheel install from a known-good Termux/Android build
+# This bypasses compilation entirely. It targets Python 3.12 on aarch64 (most common for modern phones)
+echo "⚡ Downloading pre-compiled native extensions (Instant)..."
+PYTHON_VERSION=$(python -c 'import sys; print(f"{sys.version_info.major}{sys.version_info.minor}")')
+WHEEL_URL="https://github.com/Eutalix/android-pydantic-core/releases/download/v2.27.2/pydantic_core-2.27.2-cp${PYTHON_VERSION}-cp${PYTHON_VERSION}-android_aarch64.whl"
+
+pip install "$WHEEL_URL" || {
+    echo "⚠️ Direct wheel failed. Falling back to community index..."
+    pip install --no-cache-dir pydantic-core --extra-index-url https://pypi.debian.net/pydantic-core/
+}
 
 # Now install the rest of the requirements
 pip install --no-cache-dir -r requirements.txt
