@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+backend/venv/
+__pycache__/
+*.pyc
+
+# Environment (secrets)
+backend/.env
+.env
+
+# Build outputs
+frontend/dist/
+*.egg-info/
+
+# Data (local memory storage)
+data/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/tmp/
+
+# Agent config (local only)
+.agent/
+.gemini/
+skills-main/
+friday_jarvis2-main/
+
+# Docker
+data/qdrant/
+data/qdrant_local/
+
+# Reference images (large)
+*.png
+*.jpg
+!docs/*.png
+
+# Pyright/Pyre config (local)
+pyrightconfig.json
+backend/pyrightconfig.json
+backend/.pyre_configuration
+backend/pyproject.toml

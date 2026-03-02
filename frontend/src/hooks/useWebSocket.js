@@ -1,0 +1,141 @@
+import { useRef, useState, useCallback, useEffect } from 'react'
+
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
+
+export default function useWebSocket() {
+    const wsRef = useRef(null)
+    const [connected, setConnected] = useState(false)
+    const [status, setStatus] = useState('idle') // idle, listening, thinking, speaking, transcribing, analyzing
+    const [messages, setMessages] = useState([])
+    const [audioQueue, setAudioQueue] = useState([])
+    const reconnectTimer = useRef(null)
+
+    const handleMessage = useCallback((event) => {
+        try {
+            const data = JSON.parse(event.data)
+
+            switch (data.type) {
+                case 'response_text':
+                    // Finalize streaming message or add new one
+                    setMessages(prev => {
+                        const last = prev[prev.length - 1]
+                        if (last && last.role === 'assistant' && last._streaming) {
+                            // Replace streaming message with final version
+                            return [...prev.slice(0, -1), { role: data.role, content: data.content }]
+                        }
+                        return [...prev, { role: data.role, content: data.content }]
+                    })
+                    break
+                case 'transcript':
+                    setMessages(prev => [...prev, { role: data.role, content: data.content }])
+                    break
+                case 'response_chunk':
+                    // streaming chunk — update last assistant message or create new one
+                    setMessages(prev => {
+                        const last = prev[prev.length - 1]
+                        if (last && last.role === 'assistant' && last._streaming) {
+                            return [...prev.slice(0, -1), { ...last, content: last.content + data.content }]
+                        }
+                        return [...prev, { role: 'assistant', content: data.content, _streaming: true }]
+                    })
+                    break
+                case 'audio_response':
+                    setAudioQueue(prev => [...prev, data.data])
+                    break
+                case 'status':
+                    setStatus(data.state)
+                    break
+                case 'error':
+                    console.error('Server error:', data.message)
+                    break
+            }
+        } catch (e) {
+            console.error('WS message parse error:', e)
+        }
+    }, [])
+
+    const connect = useCallback(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) return
+
+        const ws = new WebSocket(WS_URL)
+
+        ws.onopen = () => {
+            setConnected(true)
+            setStatus('listening')
+            console.log('WebSocket connected')
+        }
+
+        ws.onmessage = handleMessage
+
+        ws.onclose = () => {
+            setConnected(false)
+            setStatus('idle')
+            // Auto-reconnect after 3s
+            reconnectTimer.current = setTimeout(connect, 3000)
+        }
+
+        ws.onerror = (err) => {
+            console.error('WebSocket error:', err)
+        }
+
+        wsRef.current = ws
+    }, [handleMessage])
+
+    const disconnect = useCallback(() => {
+        clearTimeout(reconnectTimer.current)
+        if (wsRef.current) {
+            wsRef.current.close()
+            wsRef.current = null
+        }
+        setConnected(false)
+        setStatus('idle')
+        setMessages([])
+    }, [])
+
+    const sendText = useCallback((text) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: 'text_message', content: text }))
+        }
+    }, [])
+
+    const sendAudio = useCallback((base64Audio) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: 'audio_chunk', data: base64Audio }))
+        }
+    }, [])
+
+    const sendVisionFrame = useCallback((base64Image, prompt = '') => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: 'vision_frame', data: base64Image, prompt }))
+        }
+    }, [])
+
+    const endSession = useCallback(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: 'end_session' }))
+        }
+        disconnect()
+    }, [disconnect])
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            clearTimeout(reconnectTimer.current)
+            wsRef.current?.close()
+        }
+    }, [])
+
+    return {
+        connected,
+        status,
+        messages,
+        audioQueue,
+        setAudioQueue,
+        connect,
+        disconnect,
+        sendText,
+        sendAudio,
+        sendVisionFrame,
+        endSession,
+    }
+}
