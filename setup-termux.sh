@@ -18,8 +18,13 @@ pkg upgrade -y
 # --- 2. Install Dependencies ---
 echo ""
 echo "📦 [2/5] Installing Python, Git, and Cloudflare..."
-# Native build tools (rust, clang) removed to save space/time since we'll use pre-built wheels
 pkg install -y python git cloudflared termux-services
+
+# FASTEST FIX: Add Termux User Repository (TUR) which has pre-built Pydantic binaries
+echo "⚡ Adding Termux User Repository for pre-built binaries..."
+pkg install -y tur-repo
+pkg update -y
+pkg install -y python-pydantic
 
 # Keep Termux awake in background
 termux-wake-lock 2>/dev/null || true
@@ -45,28 +50,27 @@ fi
 
 # --- 4. Install Python Dependencies ---
 echo ""
-echo "🐍 [4/5] Installing Python packages (ULTRA-FAST MODE)..."
+echo "🐍 [4/5] Installing Python packages (NATIVE MODE)..."
 cd "$FRIDAY_DIR/backend"
 
-python -m venv venv 2>/dev/null || python -m ensurepip
+# Create venv with system site-packages included (so we use the fast pkg install version)
+python -m venv --system-site-packages venv 2>/dev/null || python -m ensurepip
 source venv/bin/activate || . venv/bin/activate
 
-# Upgrade pip for better wheel support
+# Upgrade pip
 pip install --upgrade pip
 
-# ULTRA-FAST: Direct wheel install from a known-good Termux/Android build
-# This bypasses compilation entirely. It targets Python 3.12 on aarch64 (most common for modern phones)
-echo "⚡ Downloading pre-compiled native extensions (Instant)..."
-PYTHON_VERSION=$(python -c 'import sys; print(f"{sys.version_info.major}{sys.version_info.minor}")')
-WHEEL_URL="https://github.com/Eutalix/android-pydantic-core/releases/download/v2.27.2/pydantic_core-2.27.2-cp${PYTHON_VERSION}-cp${PYTHON_VERSION}-android_aarch64.whl"
-
-pip install "$WHEEL_URL" || {
-    echo "⚠️ Direct wheel failed. Falling back to community index..."
-    pip install --no-cache-dir pydantic-core --extra-index-url https://pypi.debian.net/pydantic-core/
+echo "⚡ Linking native pydantic-core..."
+# Verify it's working
+python -c "import pydantic_core; print('✅ pydantic-core found')" || {
+    echo "⚠️ System pydantic not found, attempting last resort..."
+    pip install pydantic-core --extra-index-url https://pypi.debian.net/pydantic-core/
 }
 
-# Now install the rest of the requirements
-pip install --no-cache-dir -r requirements.txt
+# Now install the rest (avoiding pydantic/pydantic-core re-build)
+grep -vE "pydantic|pydantic-core" requirements.txt > requirements_fast.txt
+pip install --no-cache-dir -r requirements_fast.txt
+rm requirements_fast.txt
 
 # --- 5. Configure API Keys ---
 echo ""
