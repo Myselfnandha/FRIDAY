@@ -24,7 +24,8 @@ pkg install -y python git cloudflared termux-services
 echo "⚡ Adding Termux User Repository for pre-built binaries..."
 pkg install -y tur-repo
 pkg update -y
-pkg install -y python-pydantic
+# The correct package name for Pydantic v2 in TUR is usually python-pydantic-v2 or similar
+pkg install -y python-pydantic-v2 || pkg install -y python-pydantic
 
 # Keep Termux awake in background
 termux-wake-lock 2>/dev/null || true
@@ -54,18 +55,24 @@ echo "🐍 [4/5] Installing Python packages (NATIVE MODE)..."
 cd "$FRIDAY_DIR/backend"
 
 # Create venv with system site-packages included (so we use the fast pkg install version)
+# We delete the old venv first to ensure the --system-site-packages flag takes effect
+rm -rf venv
 python -m venv --system-site-packages venv 2>/dev/null || python -m ensurepip
 source venv/bin/activate || . venv/bin/activate
 
 # Upgrade pip
 pip install --upgrade pip
 
-echo "⚡ Linking native pydantic-core..."
+echo "⚡ Verifying native pydantic-core..."
 # Verify it's working
-python -c "import pydantic_core; print('✅ pydantic-core found')" || {
-    echo "⚠️ System pydantic not found, attempting last resort..."
-    pip install pydantic-core --extra-index-url https://pypi.debian.net/pydantic-core/
-}
+if python -c "import pydantic_core; print('✅ pydantic-core found')" 2>/dev/null; then
+    echo "✅ Native binary linked successfully"
+else
+    echo "⚠️ System pydantic not found, attempting fast-track compilation..."
+    export ANDROID_API_LEVEL=24
+    pkg install -y clang rust binutils
+    pip install pydantic-core --extra-index-url https://pypi.debian.net/pydantic-core/ || pip install pydantic-core
+fi
 
 # Now install the rest (avoiding pydantic/pydantic-core re-build)
 grep -vE "pydantic|pydantic-core" requirements.txt > requirements_fast.txt
