@@ -106,7 +106,8 @@ fi
 
 cd ~/friday
 echo -e "${DIM}🔄 Checking for updates...${NC}"
-GIT_STATUS=$(git pull 2>&1)
+# Use || true to prevent set -e from killing the script if git pull fails
+GIT_STATUS=$(git pull --no-edit 2>&1 || true)
 if [[ "$GIT_STATUS" == *"Already up to date"* ]]; then
     echo -e "${DIM}  ✅ Code is current${NC}"
 else
