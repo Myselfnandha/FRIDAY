@@ -5,8 +5,7 @@ __pycache__/
 *.pyc
 
 # Environment (secrets)
-backend/.env
-.env
+
 
 # Build outputs
 frontend/dist/
@@ -23,6 +22,9 @@ data/
 .DS_Store
 Thumbs.db
 
+.Environment
+.env.example
+.env
 # Logs
 *.log
 /tmp/
