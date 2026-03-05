@@ -184,7 +184,7 @@ if [ -z "$FRIDAY_RUNNING" ]; then
     fi
     echo "👋 Waking up Friday..."
     termux-wake-lock 2>/dev/null || true
-    proot-distro login ubuntu -- bash ~/autostart.sh
+    proot-distro login ubuntu -- bash /root/autostart.sh
 fi
 HOOKEOF
 
