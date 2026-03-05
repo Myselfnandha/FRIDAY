@@ -15,6 +15,8 @@ YELLOW='\033[1;33m'
 DIM='\033[2m'
 NC='\033[0m'
 
+
+#new
 cleanup() {
     echo ""
     echo -e "${RED}🛑 Shutting down Friday...${NC}"
