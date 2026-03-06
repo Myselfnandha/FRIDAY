@@ -1,11 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ========================================================
-# F.R.I.D.A.Y. ULTRA-AUTOMATION (Termux + Ubuntu Proot)
-# One script to rule them all.
-# Run ONCE. After that, just open Termux.
+# F.R.I.D.A.Y. BOOTSTRAP — Run this ONCE on a fresh phone
+# After this, just open Termux and Friday starts itself.
 # ========================================================
-
-set -e
 
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
@@ -13,38 +10,51 @@ RED='\033[0;31m'
 DIM='\033[2m'
 NC='\033[0m'
 
-echo -e "${CYAN}🦾 F.R.I.D.A.Y. - System Initialization...${NC}"
+echo -e "${CYAN}"
+echo "  ███████╗██████╗ ██╗██████╗  █████╗ ██╗   ██╗"
+echo "  ██╔════╝██╔══██╗██║██╔══██╗██╔══██╗╚██╗ ██╔╝"
+echo "  █████╗  ██████╔╝██║██║  ██║███████║ ╚████╔╝ "
+echo "  ██╔══╝  ██╔══██╗██║██║  ██║██╔══██║  ╚██╔╝  "
+echo "  ██║     ██║  ██║██║██████╔╝██║  ██║   ██║   "
+echo "  ╚═╝     ╚═╝  ╚═╝╚═╝╚═════╝ ╚═╝  ╚═╝   ╚═╝   "
+echo -e "${NC}"
+echo -e "${CYAN}🦾 One-Time Setup — Sit back and relax${NC}"
+echo ""
 
-# ============================================================
-# PHASE 1: Termux Host Setup
-# ============================================================
-echo -e "${DIM}📦 [1/5] Updating Termux packages...${NC}"
-pkg update -y
+# ===========================================
+# STEP 1: Update Termux & Install Essentials
+# ===========================================
+echo -e "${DIM}[1/5] Updating Termux...${NC}"
+pkg update -y && pkg upgrade -y
 pkg install -y proot-distro git cloudflared termux-services
 
-# Install Ubuntu if not present
-if ! proot-distro list | grep -q "ubuntu.*installed"; then
-    echo -e "${CYAN}🌐 Installing Ubuntu environment (first time only)...${NC}"
+# ===========================================
+# STEP 2: Install Ubuntu (if not installed)
+# ===========================================
+echo -e "${DIM}[2/5] Setting up Ubuntu environment...${NC}"
+if proot-distro list 2>/dev/null | grep -q "ubuntu"; then
+    echo -e "${GREEN}  ✅ Ubuntu already installed${NC}"
+else
+    echo -e "${DIM}  Downloading Ubuntu (this takes ~1 min)...${NC}"
     proot-distro install ubuntu
 fi
 
-termux-wake-lock 2>/dev/null || true
+# ===========================================
+# STEP 3: Collect API Keys
+# ===========================================
+echo -e "${DIM}[3/5] Configuring API keys...${NC}"
 
-# ============================================================
-# PHASE 2: Collect API Keys (if not already saved)
-# ============================================================
-echo -e "${DIM}🔑 [2/5] Checking API keys...${NC}"
-
-# We store a master .env in Termux home for persistence
 MASTER_ENV="$HOME/.friday_env"
 
-if [ ! -f "$MASTER_ENV" ] || ! grep -q "GROQ_API_KEY=." "$MASTER_ENV"; then
+if [ -f "$MASTER_ENV" ] && grep -q "GROQ_API_KEY=." "$MASTER_ENV"; then
+    echo -e "${GREEN}  ✅ API keys already saved${NC}"
+else
     echo ""
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${CYAN}  🔑 First-Time API Key Setup${NC}"
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
-    echo -e "  Get GROQ key  → ${DIM}https://console.groq.com${NC}"
+    echo -e "  Get GROQ key   → ${DIM}https://console.groq.com${NC}"
     echo -e "  Get Google key → ${DIM}https://aistudio.google.com${NC}"
     echo ""
     read -p "  Enter GROQ_API_KEY: " GROQ_KEY
@@ -53,152 +63,137 @@ if [ ! -f "$MASTER_ENV" ] || ! grep -q "GROQ_API_KEY=." "$MASTER_ENV"; then
     USER_NAME=${USER_NAME:-Alan}
     USER_ID=$(echo "$USER_NAME" | tr '[:upper:]' '[:lower:]')
 
-    cat > "$MASTER_ENV" << ENVEOF
-GROQ_API_KEY=$GROQ_KEY
-GOOGLE_API_KEY=$GOOGLE_KEY
-FRIDAY_USER_NAME=$USER_NAME
-FRIDAY_USER_ID=$USER_ID
-HOST=0.0.0.0
-PORT=8000
-ENVEOF
-    echo -e "${GREEN}  ✅ API keys saved to $MASTER_ENV${NC}"
-else
-    echo -e "${GREEN}  ✅ API keys already configured${NC}"
+    printf "GROQ_API_KEY=%s\nGOOGLE_API_KEY=%s\nFRIDAY_USER_NAME=%s\nFRIDAY_USER_ID=%s\nHOST=0.0.0.0\nPORT=8000\n" \
+        "$GROQ_KEY" "$GOOGLE_KEY" "$USER_NAME" "$USER_ID" > "$MASTER_ENV"
+
+    echo -e "${GREEN}  ✅ Keys saved${NC}"
 fi
 
-# ============================================================
-# PHASE 3: Inject .env into Ubuntu filesystem
-# ============================================================
-echo -e "${DIM}📋 [3/5] Syncing .env into Ubuntu...${NC}"
+# ===========================================
+# STEP 4: Prepare Ubuntu with everything
+# ===========================================
+echo -e "${DIM}[4/5] Installing Python & Friday inside Ubuntu...${NC}"
+
+# The REPO_NAME is what git clone creates as a folder name
+REPO_URL="https://github.com/Myselfnandha/Clawbot.git"
+REPO_FOLDER="Clawbot"  # This is what 'git clone' creates
 
 UBUNTU_ROOT="/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/root"
-UBUNTU_BACKEND="$UBUNTU_ROOT/friday/backend"
 
-mkdir -p "$UBUNTU_BACKEND"
-cp "$MASTER_ENV" "$UBUNTU_BACKEND/.env"
-echo -e "${GREEN}  ✅ .env synced to Ubuntu${NC}"
+# Sync .env into Ubuntu BEFORE running anything
+mkdir -p "$UBUNTU_ROOT/$REPO_FOLDER/backend"
+cp "$MASTER_ENV" "$UBUNTU_ROOT/$REPO_FOLDER/backend/.env" 2>/dev/null || true
 
-# ============================================================
-# PHASE 4: Create autostart script INSIDE Ubuntu
-# ============================================================
-echo -e "${DIM}🐍 [4/5] Setting up Ubuntu automation...${NC}"
+# Run the full setup INSIDE Ubuntu
+proot-distro login ubuntu -- bash -c "
+    set +e  # DO NOT exit on error — handle errors ourselves
 
-cat > "$UBUNTU_ROOT/autostart.sh" << 'UBUNTUEOF'
-#!/usr/bin/env bash
-set -e
+    echo '  📦 Installing system packages...'
+    apt update -qq 2>/dev/null
+    apt install -y -qq python3 python3-pip python3-venv git 2>/dev/null
 
-CYAN='\033[0;36m'
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-DIM='\033[2m'
-NC='\033[0m'
+    cd /root
 
-# --- Ubuntu System Packages ---
-apt update -qq && apt install -y -qq python3 python3-pip python3-venv git > /dev/null 2>&1
+    # Clone or update the repo
+    if [ ! -d '$REPO_FOLDER' ]; then
+        echo '  📥 Cloning Friday from GitHub...'
+        git clone '$REPO_URL' '$REPO_FOLDER'
+    else
+        echo '  🔄 Updating code...'
+        cd /root/$REPO_FOLDER && git pull --no-edit 2>/dev/null || true
+    fi
 
-cd ~
+    cd /root/$REPO_FOLDER/backend
 
-# --- Clone or Update Repo ---
-if [ ! -d "friday" ]; then
-    echo -e "${DIM}📥 Cloning Friday from GitHub...${NC}"
-    git clone https://github.com/Myselfnandha/Clawbot.git friday
-fi
+    # Check requirements.txt exists
+    if [ ! -f requirements.txt ]; then
+        echo '  ❌ ERROR: requirements.txt not found!'
+        echo '  Current directory: '
+        pwd
+        ls -la
+        exit 1
+    fi
 
-cd ~/friday
-echo -e "${DIM}🔄 Checking for updates...${NC}"
-# Use || true to prevent set -e from killing the script if git pull fails
-GIT_STATUS=$(git pull --no-edit 2>&1 || true)
-if [[ "$GIT_STATUS" == *"Already up to date"* ]]; then
-    echo -e "${DIM}  ✅ Code is current${NC}"
-else
-    echo -e "${GREEN}  ✅ Code updated${NC}"
-fi
+    # Setup venv
+    if [ ! -d venv ]; then
+        echo '  🐍 Creating virtual environment...'
+        python3 -m venv venv
+    fi
 
-# --- Setup Venv ---
-cd backend
-if [ ! -d "venv" ]; then
-    echo -e "${DIM}🐍 Creating virtual environment...${NC}"
-    python3 -m venv venv
-fi
+    . venv/bin/activate
 
-source venv/bin/activate
-
-# --- Smart Dependency Install ---
-if [[ "$GIT_STATUS" != *"Already up to date"* ]] || ! python3 -c "import uvicorn" 2>/dev/null; then
-    echo -e "${DIM}⚡ Installing/updating dependencies...${NC}"
-    pip install --upgrade pip > /dev/null 2>&1
+    echo '  ⚡ Installing Python dependencies...'
+    pip install --upgrade pip 2>/dev/null
     pip install --no-cache-dir -r requirements.txt
-else
-    echo -e "${DIM}  ✅ Dependencies OK${NC}"
-fi
 
-# --- Validate .env ---
-if [ ! -f .env ] || ! grep -q "GROQ_API_KEY=." .env; then
-    echo -e "${RED}❌ .env is missing or incomplete!${NC}"
-    echo -e "${DIM}Creating .env now...${NC}"
-    read -p "  GROQ_API_KEY: " GROQ_KEY
-    read -p "  GOOGLE_API_KEY: " GOOGLE_KEY
-    read -p "  Your name (default: Alan): " UNAME
-    UNAME=${UNAME:-Alan}
-    UID_LOWER=$(echo "$UNAME" | tr '[:upper:]' '[:lower:]')
-    cat > .env << EOF
-GROQ_API_KEY=$GROQ_KEY
-GOOGLE_API_KEY=$GOOGLE_KEY
-FRIDAY_USER_NAME=$UNAME
-FRIDAY_USER_ID=$UID_LOWER
-HOST=0.0.0.0
-PORT=8000
-EOF
-    echo -e "${GREEN}  ✅ .env created${NC}"
-fi
+    # Verify critical packages
+    python3 -c 'import uvicorn; import fastapi; print(\"  ✅ All packages installed successfully\")'
 
-# --- Start Friday ---
-cd ..
-chmod +x friday.sh
-exec ./friday.sh
-UBUNTUEOF
+    echo '  ✅ Ubuntu setup complete'
+"
 
-chmod +x "$UBUNTU_ROOT/autostart.sh"
-
-# ============================================================
-# PHASE 5: Hook into Termux Shell Login
-# ============================================================
-echo -e "${DIM}🔗 [5/5] Setting up auto-start on Termux launch...${NC}"
+# ===========================================
+# STEP 5: Hook into Termux auto-start
+# ===========================================
+echo -e "${DIM}[5/5] Setting up auto-start...${NC}"
 
 BASHRC="$HOME/.bashrc"
 
-# Remove any old Friday hooks first
-sed -i '/F.R.I.D.A.Y. AUTO-WAKE/,/^fi$/d' "$BASHRC" 2>/dev/null || true
-sed -i '/PROOT_ACTIVE/d' "$BASHRC" 2>/dev/null || true
+# Clean out any previous Friday hooks
+if [ -f "$BASHRC" ]; then
+    # Remove old hooks safely
+    grep -v "FRIDAY_RUNNING\|PROOT_ACTIVE\|Waking up Friday\|proot-distro login ubuntu\|friday_env\|F.R.I.D.A.Y. AUTO" "$BASHRC" > "$BASHRC.tmp" 2>/dev/null
+    mv "$BASHRC.tmp" "$BASHRC"
+fi
 
+# Write the new, clean auto-start hook
 cat >> "$BASHRC" << 'HOOKEOF'
 
-# --- F.R.I.D.A.Y. AUTO-WAKE ---
+# --- F.R.I.D.A.Y. AUTO-START ---
 if [ -z "$FRIDAY_RUNNING" ]; then
     export FRIDAY_RUNNING=1
-    # Sync .env from master copy every boot
-    MASTER_ENV="$HOME/.friday_env"
-    UBUNTU_ENV="/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/root/friday/backend/.env"
-    if [ -f "$MASTER_ENV" ]; then
-        mkdir -p "$(dirname "$UBUNTU_ENV")"
-        cp "$MASTER_ENV" "$UBUNTU_ENV" 2>/dev/null || true
+
+    # Sync API keys from master copy
+    _MASTER="$HOME/.friday_env"
+    _TARGET="/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/root/Clawbot/backend/.env"
+    if [ -f "$_MASTER" ]; then
+        cp "$_MASTER" "$_TARGET" 2>/dev/null
     fi
+
     echo "👋 Waking up Friday..."
     termux-wake-lock 2>/dev/null || true
-    proot-distro login ubuntu -- bash /root/autostart.sh
+
+    proot-distro login ubuntu -- bash -c '
+        set +e
+        cd /root/Clawbot
+
+        # Quick update check
+        git pull --no-edit 2>/dev/null
+
+        cd backend
+        . venv/bin/activate 2>/dev/null
+
+        # Auto-install if packages are missing
+        python3 -c "import uvicorn" 2>/dev/null || {
+            echo "⚡ Installing missing packages..."
+            pip install --no-cache-dir -r requirements.txt 2>/dev/null
+        }
+
+        # Start Friday
+        cd ..
+        chmod +x friday.sh
+        exec ./friday.sh
+    '
 fi
 HOOKEOF
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}  ✅ F.R.I.D.A.Y. AUTOMATION COMPLETE${NC}"
+echo -e "${GREEN}  ✅ F.R.I.D.A.Y. SETUP COMPLETE${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo -e "  From now on, ${CYAN}just open Termux${NC} and Friday will:"
-echo -e "  1. Sync .env (API keys) automatically"
-echo -e "  2. Pull latest code from GitHub"
-echo -e "  3. Update packages if needed"
-echo -e "  4. Start backend + Cloudflare tunnel"
+echo -e "  ${CYAN}Close Termux and reopen it.${NC}"
+echo -e "  Friday will start automatically every time."
 echo ""
-echo -e "  ${DIM}Restarting shell now...${NC}"
-exec bash
+echo -e "  ${DIM}Or restart now by typing: exec bash${NC}"
+echo ""
