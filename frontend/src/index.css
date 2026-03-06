@@ -464,33 +464,18 @@ body {
 }
 
 /* ============================
-   Voice Visualizer
+   Voice Visualizer (Canvas)
    ============================ */
 
 .visualizer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  height: 40px;
-  padding: 8px 0;
+  width: 100%;
+  max-width: 300px;
+  height: 44px;
   flex-shrink: 0;
 }
 
-.visualizer__bar {
-  width: 3px;
-  height: 100%;
-  background: var(--primary);
-  border-radius: var(--radius-pill);
-  transform-origin: bottom;
-  animation: waveform-bar 0.6s ease-in-out infinite;
-  box-shadow: 0 0 4px var(--primary-dim);
-}
-
-.visualizer--idle .visualizer__bar {
-  animation: none;
-  transform: scaleY(0.15);
-  opacity: 0.3;
+.visualizer__canvas {
+  display: block;
 }
 
 /* ============================

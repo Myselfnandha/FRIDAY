@@ -39,7 +39,7 @@ export default function AssistantScreen({ onEnd }) {
         () => localStorage.getItem('friday_videoinput') || ''
     )
 
-    const { recording, toggleRecording } = useVoice(sendAudio)
+    const { recording, audioLevel, toggleRecording } = useVoice(sendAudio)
     const { active: cameraActive, stream: cameraStream, startCamera, stopCamera, switchCamera, startScreenShare, captureFrame } = useCamera()
 
     useAudioPlayer(audioQueue, setAudioQueue)
@@ -129,7 +129,7 @@ export default function AssistantScreen({ onEnd }) {
             <StatusBar services={services} activity={activity} connected={connected} />
 
             <div className="assistant__center">
-                <VoiceVisualizer isActive={isActive} />
+                <VoiceVisualizer isActive={isActive} audioLevel={audioLevel} />
 
                 {!chatVisible && <ArcReactor size="large" />}
 
