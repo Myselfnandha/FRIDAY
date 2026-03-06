@@ -7,8 +7,8 @@ __pycache__/
 # Environment (secrets)
 
 
-# Build outputs
-frontend/dist/
+# Build outputs (frontend/dist is committed for mobile hosting)
+# frontend/dist/
 *.egg-info/
 
 # Data (local memory storage)
