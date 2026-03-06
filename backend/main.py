@@ -36,7 +36,7 @@ app.include_router(router)
 async def ws_endpoint(websocket: WebSocket):
     await websocket_handler(websocket)
 
-
+#new
 # --- Serve Frontend (React SPA) ---
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend" / "dist"
 
