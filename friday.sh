@@ -73,7 +73,7 @@ elif command -v python3 >/dev/null 2>&1; then
 else
     PYTHON="python"
 fi
-
+#neww
 # ── Step 3: Start Backend ──
 echo -e "${DIM}[1/2] Starting Friday backend...${NC}"
 cd "$BACKEND_DIR"
