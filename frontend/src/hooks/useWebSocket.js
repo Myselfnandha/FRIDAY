@@ -5,9 +5,11 @@ const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${wind
 export default function useWebSocket() {
     const wsRef = useRef(null)
     const [connected, setConnected] = useState(false)
-    const [status, setStatus] = useState('idle') // idle, listening, thinking, speaking, transcribing, analyzing
+    const [status, setStatus] = useState('idle')
     const [messages, setMessages] = useState([])
     const [audioQueue, setAudioQueue] = useState([])
+    const [services, setServices] = useState({})
+    const [activity, setActivity] = useState('')
     const reconnectTimer = useRef(null)
 
     const handleMessage = useCallback((event) => {
@@ -16,27 +18,44 @@ export default function useWebSocket() {
 
             switch (data.type) {
                 case 'response_text':
-                    // Finalize streaming message or add new one
                     setMessages(prev => {
                         const last = prev[prev.length - 1]
                         if (last && last.role === 'assistant' && last._streaming) {
-                            // Replace streaming message with final version
-                            return [...prev.slice(0, -1), { role: data.role, content: data.content }]
+                            return [...prev.slice(0, -1), {
+                                role: data.role,
+                                content: data.content,
+                                timestamp: Date.now(),
+                            }]
                         }
-                        return [...prev, { role: data.role, content: data.content }]
+                        return [...prev, {
+                            role: data.role,
+                            content: data.content,
+                            timestamp: Date.now(),
+                        }]
                     })
                     break
                 case 'transcript':
-                    setMessages(prev => [...prev, { role: data.role, content: data.content }])
+                    setMessages(prev => [...prev, {
+                        role: data.role,
+                        content: data.content,
+                        timestamp: Date.now(),
+                    }])
                     break
                 case 'response_chunk':
-                    // streaming chunk — update last assistant message or create new one
                     setMessages(prev => {
                         const last = prev[prev.length - 1]
                         if (last && last.role === 'assistant' && last._streaming) {
-                            return [...prev.slice(0, -1), { ...last, content: last.content + data.content }]
+                            return [...prev.slice(0, -1), {
+                                ...last,
+                                content: last.content + data.content,
+                            }]
                         }
-                        return [...prev, { role: 'assistant', content: data.content, _streaming: true }]
+                        return [...prev, {
+                            role: 'assistant',
+                            content: data.content,
+                            timestamp: Date.now(),
+                            _streaming: true,
+                        }]
                     })
                     break
                 case 'audio_response':
@@ -45,8 +64,16 @@ export default function useWebSocket() {
                 case 'status':
                     setStatus(data.state)
                     break
+                case 'system_status':
+                    setServices(prev => ({
+                        ...prev,
+                        [data.service]: data.state,
+                    }))
+                    if (data.message) setActivity(data.message)
+                    break
                 case 'error':
                     console.error('Server error:', data.message)
+                    setActivity(`Error: ${data.message}`)
                     break
             }
         } catch (e) {
@@ -62,7 +89,7 @@ export default function useWebSocket() {
         ws.onopen = () => {
             setConnected(true)
             setStatus('listening')
-            console.log('WebSocket connected')
+            setActivity('Connected to Friday')
         }
 
         ws.onmessage = handleMessage
@@ -70,12 +97,13 @@ export default function useWebSocket() {
         ws.onclose = () => {
             setConnected(false)
             setStatus('idle')
-            // Auto-reconnect after 3s
+            setActivity('Disconnected — reconnecting...')
             reconnectTimer.current = setTimeout(connect, 3000)
         }
 
         ws.onerror = (err) => {
             console.error('WebSocket error:', err)
+            setActivity('Connection error')
         }
 
         wsRef.current = ws
@@ -90,6 +118,8 @@ export default function useWebSocket() {
         setConnected(false)
         setStatus('idle')
         setMessages([])
+        setServices({})
+        setActivity('')
     }, [])
 
     const sendText = useCallback((text) => {
@@ -117,7 +147,6 @@ export default function useWebSocket() {
         disconnect()
     }, [disconnect])
 
-    // Cleanup on unmount
     useEffect(() => {
         return () => {
             clearTimeout(reconnectTimer.current)
@@ -131,6 +160,8 @@ export default function useWebSocket() {
         messages,
         audioQueue,
         setAudioQueue,
+        services,
+        activity,
         connect,
         disconnect,
         sendText,

@@ -6,19 +6,11 @@ import ChatPanel from '../components/ChatPanel'
 import ControlBar from '../components/ControlBar'
 import MessageInput from '../components/MessageInput'
 import VideoFeed from '../components/VideoFeed'
+import StatusBar from '../components/StatusBar'
 import useWebSocket from '../hooks/useWebSocket'
 import useVoice from '../hooks/useVoice'
 import useCamera from '../hooks/useCamera'
 import useAudioPlayer from '../hooks/useAudioPlayer'
-
-const STATUS_LABELS = {
-    idle: '',
-    listening: 'FRIDAY is listening, ask her a question',
-    thinking: 'FRIDAY is thinking...',
-    speaking: 'FRIDAY is speaking...',
-    transcribing: 'Processing your voice...',
-    analyzing: 'Analyzing what you shared...',
-}
 
 export default function AssistantScreen({ onEnd }) {
     const {
@@ -27,6 +19,8 @@ export default function AssistantScreen({ onEnd }) {
         messages,
         audioQueue,
         setAudioQueue,
+        services,
+        activity,
         connect,
         sendText,
         sendAudio,
@@ -42,7 +36,6 @@ export default function AssistantScreen({ onEnd }) {
 
     useAudioPlayer(audioQueue, setAudioQueue)
 
-    // Auto-connect on mount
     React.useEffect(() => {
         connect()
         return () => endSession()
@@ -58,12 +51,9 @@ export default function AssistantScreen({ onEnd }) {
         } else {
             const s = await startCamera()
             if (s) {
-                // Capture a frame after a short delay for vision
                 setTimeout(async () => {
                     const frame = await captureFrame()
-                    if (frame) {
-                        sendVisionFrame(frame, 'What do you see?')
-                    }
+                    if (frame) sendVisionFrame(frame, 'What do you see?')
                 }, 1000)
             }
         }
@@ -79,9 +69,7 @@ export default function AssistantScreen({ onEnd }) {
                 setScreenActive(true)
                 setTimeout(async () => {
                     const frame = await captureFrame()
-                    if (frame) {
-                        sendVisionFrame(frame, 'Describe what you see on screen.')
-                    }
+                    if (frame) sendVisionFrame(frame, 'Describe what you see on screen.')
                 }, 1000)
             }
         }
@@ -93,10 +81,13 @@ export default function AssistantScreen({ onEnd }) {
     }, [endSession, onEnd])
 
     const isActive = status === 'speaking' || status === 'thinking' || recording
+    const isThinking = status === 'thinking'
 
     return (
         <div className="assistant">
             <HudBackground />
+
+            <StatusBar services={services} activity={activity} connected={connected} />
 
             <div className="assistant__center">
                 <VoiceVisualizer isActive={isActive} />
@@ -104,10 +95,10 @@ export default function AssistantScreen({ onEnd }) {
                 {!chatVisible && <ArcReactor size="large" />}
 
                 {chatVisible ? (
-                    <ChatPanel messages={messages} />
+                    <ChatPanel messages={messages} isThinking={isThinking} />
                 ) : (
                     <p className="assistant__status">
-                        {STATUS_LABELS[status] || (connected ? 'Connected' : 'Connecting...')}
+                        {connected ? (isThinking ? 'Thinking...' : 'Listening') : 'Connecting...'}
                     </p>
                 )}
 
