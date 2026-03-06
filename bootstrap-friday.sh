@@ -70,23 +70,20 @@ else
 fi
 
 # ===========================================
-# STEP 4: Prepare Ubuntu with everything
+# STEP 4: Clone repo + install deps in Ubuntu
 # ===========================================
 echo -e "${DIM}[4/5] Installing Python & Friday inside Ubuntu...${NC}"
 
-# The REPO_NAME is what git clone creates as a folder name
 REPO_URL="https://github.com/Myselfnandha/Clawbot.git"
-REPO_FOLDER="Clawbot"  # This is what 'git clone' creates
-
+REPO_FOLDER="Clawbot"
 UBUNTU_ROOT="/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/root"
 
-# Sync .env into Ubuntu BEFORE running anything
-mkdir -p "$UBUNTU_ROOT/$REPO_FOLDER/backend"
-cp "$MASTER_ENV" "$UBUNTU_ROOT/$REPO_FOLDER/backend/.env" 2>/dev/null || true
+# IMPORTANT: Do NOT create directories before git clone!
+# Git clone needs an empty or non-existent target folder.
 
 # Run the full setup INSIDE Ubuntu
 proot-distro login ubuntu -- bash -c "
-    set +e  # DO NOT exit on error — handle errors ourselves
+    set +e
 
     echo '  📦 Installing system packages...'
     apt update -qq 2>/dev/null
@@ -95,22 +92,31 @@ proot-distro login ubuntu -- bash -c "
     cd /root
 
     # Clone or update the repo
-    if [ ! -d '$REPO_FOLDER' ]; then
+    if [ -d '$REPO_FOLDER/.git' ]; then
+        echo '  🔄 Updating code...'
+        cd /root/$REPO_FOLDER
+        git pull --no-edit 2>/dev/null || true
+    else
+        # Remove any leftover broken directory first
+        rm -rf /root/$REPO_FOLDER
         echo '  📥 Cloning Friday from GitHub...'
         git clone '$REPO_URL' '$REPO_FOLDER'
-    else
-        echo '  🔄 Updating code...'
-        cd /root/$REPO_FOLDER && git pull --no-edit 2>/dev/null || true
+    fi
+
+    # Verify the clone worked
+    if [ ! -f /root/$REPO_FOLDER/backend/requirements.txt ]; then
+        echo '  ❌ Clone failed! Retrying...'
+        rm -rf /root/$REPO_FOLDER
+        git clone '$REPO_URL' '$REPO_FOLDER'
     fi
 
     cd /root/$REPO_FOLDER/backend
 
-    # Check requirements.txt exists
+    # Verify requirements.txt
     if [ ! -f requirements.txt ]; then
-        echo '  ❌ ERROR: requirements.txt not found!'
-        echo '  Current directory: '
-        pwd
-        ls -la
+        echo '  ❌ FATAL: requirements.txt still not found after clone!'
+        echo '  Contents of /root/$REPO_FOLDER:'
+        ls -la /root/$REPO_FOLDER/
         exit 1
     fi
 
@@ -127,10 +133,15 @@ proot-distro login ubuntu -- bash -c "
     pip install --no-cache-dir -r requirements.txt
 
     # Verify critical packages
-    python3 -c 'import uvicorn; import fastapi; print(\"  ✅ All packages installed successfully\")'
+    python3 -c 'import uvicorn; import fastapi; print(\"  ✅ All packages installed\")' || echo '  ⚠️ Some packages may have failed'
 
     echo '  ✅ Ubuntu setup complete'
 "
+
+# NOW copy .env (AFTER clone so the directory exists with real files)
+echo -e "${DIM}  🔑 Syncing API keys into Ubuntu...${NC}"
+cp "$MASTER_ENV" "$UBUNTU_ROOT/$REPO_FOLDER/backend/.env" 2>/dev/null
+echo -e "${GREEN}  ✅ .env synced${NC}"
 
 # ===========================================
 # STEP 5: Hook into Termux auto-start
@@ -139,39 +150,40 @@ echo -e "${DIM}[5/5] Setting up auto-start...${NC}"
 
 BASHRC="$HOME/.bashrc"
 
-# Clean out any previous Friday hooks
+# Clean out ANY previous Friday hooks
 if [ -f "$BASHRC" ]; then
-    # Remove old hooks safely
     grep -v "FRIDAY_RUNNING\|PROOT_ACTIVE\|Waking up Friday\|proot-distro login ubuntu\|friday_env\|F.R.I.D.A.Y. AUTO" "$BASHRC" > "$BASHRC.tmp" 2>/dev/null
     mv "$BASHRC.tmp" "$BASHRC"
 fi
 
-# Write the new, clean auto-start hook
+# Write the auto-start hook
 cat >> "$BASHRC" << 'HOOKEOF'
 
 # --- F.R.I.D.A.Y. AUTO-START ---
 if [ -z "$FRIDAY_RUNNING" ]; then
     export FRIDAY_RUNNING=1
 
-    # Sync API keys from master copy
+    # Sync API keys
     _MASTER="$HOME/.friday_env"
     _TARGET="/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/root/Clawbot/backend/.env"
-    if [ -f "$_MASTER" ]; then
-        cp "$_MASTER" "$_TARGET" 2>/dev/null
-    fi
+    [ -f "$_MASTER" ] && cp "$_MASTER" "$_TARGET" 2>/dev/null
 
     echo "👋 Waking up Friday..."
     termux-wake-lock 2>/dev/null || true
 
     proot-distro login ubuntu -- bash -c '
         set +e
-        cd /root/Clawbot
+        cd /root/Clawbot || { echo "❌ Friday not installed. Run bootstrap-friday.sh first."; exit 1; }
 
-        # Quick update check
-        git pull --no-edit 2>/dev/null
+        # Quick update
+        git pull --no-edit 2>/dev/null || true
 
         cd backend
-        . venv/bin/activate 2>/dev/null
+        . venv/bin/activate 2>/dev/null || {
+            echo "⚡ Setting up environment..."
+            python3 -m venv venv
+            . venv/bin/activate
+        }
 
         # Auto-install if packages are missing
         python3 -c "import uvicorn" 2>/dev/null || {
@@ -180,7 +192,7 @@ if [ -z "$FRIDAY_RUNNING" ]; then
         }
 
         # Start Friday
-        cd ..
+        cd /root/Clawbot
         chmod +x friday.sh
         exec ./friday.sh
     '
