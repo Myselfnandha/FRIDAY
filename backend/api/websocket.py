@@ -1,5 +1,6 @@
 import logging
 import json
+import re
 import base64
 import time
 from fastapi import WebSocket, WebSocketDisconnect
@@ -12,8 +13,18 @@ logger = logging.getLogger(__name__)
 agents: dict[str, AgentCore] = {}
 
 
+def _split_sentences(text: str) -> list[str]:
+    """Split text into sentences for streaming TTS."""
+    parts = re.split(r'(?<=[.!?])\s+', text.strip())
+    sentences = []
+    for p in parts:
+        p = p.strip()
+        if p:
+            sentences.append(p)
+    return sentences if sentences else [text]
+
+
 async def _send_status(websocket: WebSocket, service: str, state: str, message: str = ""):
-    """Send system_status event for the status bar."""
     await websocket.send_json({
         "type": "system_status",
         "service": service,
@@ -54,7 +65,7 @@ async def websocket_handler(websocket: WebSocket):
 
                 await _send_status(websocket, "groq", "received", "Response received")
                 await websocket.send_json({"type": "response_text", "content": full_response, "role": "assistant"})
-                await _send_tts(websocket, full_response)
+                await _send_tts_streaming(websocket, full_response)
 
             elif msg_type == "audio_chunk":
                 audio_b64 = data.get("data", "")
@@ -82,7 +93,7 @@ async def websocket_handler(websocket: WebSocket):
 
                 await _send_status(websocket, "groq", "received", "Response received")
                 await websocket.send_json({"type": "response_text", "content": full_response, "role": "assistant"})
-                await _send_tts(websocket, full_response)
+                await _send_tts_streaming(websocket, full_response)
 
             elif msg_type == "vision_frame":
                 image_b64 = data.get("data", "")
@@ -96,7 +107,7 @@ async def websocket_handler(websocket: WebSocket):
                 description = await agent.process_vision(image_bytes, prompt)
                 await _send_status(websocket, "google", "received", "Analysis complete")
                 await websocket.send_json({"type": "response_text", "content": description, "role": "assistant"})
-                await _send_tts(websocket, description)
+                await _send_tts_streaming(websocket, description)
 
             elif msg_type == "end_session":
                 logger.info(f"Session ended by user: {session_id}")
@@ -117,19 +128,37 @@ async def websocket_handler(websocket: WebSocket):
 
 async def _send_response(websocket: WebSocket, text: str):
     await websocket.send_json({"type": "response_text", "content": text, "role": "assistant"})
-    await _send_tts(websocket, text)
+    await _send_tts_streaming(websocket, text)
 
 
-async def _send_tts(websocket: WebSocket, text: str):
+async def _send_tts_streaming(websocket: WebSocket, text: str):
+    """Send TTS sentence-by-sentence for immediate playback."""
+    sentences = _split_sentences(text)
+
     try:
         await websocket.send_json({"type": "status", "state": "speaking"})
-        await _send_status(websocket, "tts", "streaming", "Generating speech...")
-        audio_bytes = await tts_service.synthesize(text)
-        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-        await websocket.send_json({"type": "audio_response", "data": audio_b64})
-        await _send_status(websocket, "tts", "received", "Speech ready")
+
+        for i, sentence in enumerate(sentences):
+            await _send_status(
+                websocket, "tts", "streaming",
+                f"Speaking {i + 1}/{len(sentences)}..."
+            )
+            try:
+                audio_bytes = await tts_service.synthesize(sentence)
+                audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+                await websocket.send_json({
+                    "type": "audio_response",
+                    "data": audio_b64,
+                    "sentence_index": i,
+                    "total_sentences": len(sentences),
+                })
+            except Exception as e:
+                logger.error(f"TTS sentence error ({i}): {e}")
+                continue
+
+        await _send_status(websocket, "tts", "received", "Speech complete")
         await websocket.send_json({"type": "status", "state": "listening"})
     except Exception as e:
-        logger.error(f"TTS send error: {e}")
+        logger.error(f"TTS streaming error: {e}")
         await _send_status(websocket, "tts", "error", f"TTS error: {e}")
         await websocket.send_json({"type": "status", "state": "listening"})

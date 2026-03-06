@@ -7,6 +7,7 @@ import ControlBar from '../components/ControlBar'
 import MessageInput from '../components/MessageInput'
 import VideoFeed from '../components/VideoFeed'
 import StatusBar from '../components/StatusBar'
+import DeviceSelector from '../components/DeviceSelector'
 import useWebSocket from '../hooks/useWebSocket'
 import useVoice from '../hooks/useVoice'
 import useCamera from '../hooks/useCamera'
@@ -30,11 +31,26 @@ export default function AssistantScreen({ onEnd }) {
 
     const [chatVisible, setChatVisible] = useState(true)
     const [screenActive, setScreenActive] = useState(false)
+    const [deviceSelectorType, setDeviceSelectorType] = useState(null) // 'audioinput' | 'videoinput' | null
+    const [audioDeviceId, setAudioDeviceId] = useState(
+        () => localStorage.getItem('friday_audioinput') || ''
+    )
+    const [videoDeviceId, setVideoDeviceId] = useState(
+        () => localStorage.getItem('friday_videoinput') || ''
+    )
 
     const { recording, toggleRecording } = useVoice(sendAudio)
-    const { active: cameraActive, stream: cameraStream, startCamera, stopCamera, startScreenShare, captureFrame } = useCamera()
+    const { active: cameraActive, stream: cameraStream, startCamera, stopCamera, switchCamera, startScreenShare, captureFrame } = useCamera()
 
     useAudioPlayer(audioQueue, setAudioQueue)
+
+    // Interrupt audio when new response starts streaming
+    React.useEffect(() => {
+        if (status === 'thinking') {
+            window.__fridayAudioInterrupt?.()
+            setAudioQueue([])
+        }
+    }, [status, setAudioQueue])
 
     React.useEffect(() => {
         connect()
@@ -45,11 +61,15 @@ export default function AssistantScreen({ onEnd }) {
         sendText(text)
     }, [sendText])
 
+    const handleToggleMic = useCallback(() => {
+        toggleRecording(audioDeviceId)
+    }, [toggleRecording, audioDeviceId])
+
     const handleToggleCamera = useCallback(async () => {
         if (cameraActive) {
             stopCamera()
         } else {
-            const s = await startCamera()
+            const s = await startCamera(videoDeviceId)
             if (s) {
                 setTimeout(async () => {
                     const frame = await captureFrame()
@@ -57,7 +77,7 @@ export default function AssistantScreen({ onEnd }) {
                 }, 1000)
             }
         }
-    }, [cameraActive, startCamera, stopCamera, captureFrame, sendVisionFrame])
+    }, [cameraActive, startCamera, stopCamera, captureFrame, sendVisionFrame, videoDeviceId])
 
     const handleToggleScreen = useCallback(async () => {
         if (screenActive) {
@@ -80,13 +100,32 @@ export default function AssistantScreen({ onEnd }) {
         onEnd?.()
     }, [endSession, onEnd])
 
+    const handleToggleSettings = useCallback(() => {
+        // Cycle: null -> audioinput -> videoinput -> null
+        setDeviceSelectorType(prev => {
+            if (!prev) return 'audioinput'
+            if (prev === 'audioinput') return 'videoinput'
+            return null
+        })
+    }, [])
+
+    const handleDeviceSelect = useCallback((deviceId) => {
+        if (deviceSelectorType === 'audioinput') {
+            setAudioDeviceId(deviceId)
+        } else if (deviceSelectorType === 'videoinput') {
+            setVideoDeviceId(deviceId)
+            if (cameraActive) {
+                switchCamera(deviceId)
+            }
+        }
+    }, [deviceSelectorType, cameraActive, switchCamera])
+
     const isActive = status === 'speaking' || status === 'thinking' || recording
     const isThinking = status === 'thinking'
 
     return (
         <div className="assistant">
             <HudBackground />
-
             <StatusBar services={services} activity={activity} connected={connected} />
 
             <div className="assistant__center">
@@ -112,11 +151,19 @@ export default function AssistantScreen({ onEnd }) {
                 cameraActive={cameraActive}
                 screenActive={screenActive}
                 chatActive={chatVisible}
-                onToggleMic={toggleRecording}
+                onToggleMic={handleToggleMic}
                 onToggleCamera={handleToggleCamera}
                 onToggleScreen={handleToggleScreen}
                 onToggleChat={() => setChatVisible(!chatVisible)}
+                onToggleSettings={handleToggleSettings}
                 onEndCall={handleEndCall}
+            />
+
+            <DeviceSelector
+                type={deviceSelectorType}
+                isOpen={!!deviceSelectorType}
+                onSelect={handleDeviceSelect}
+                onClose={() => setDeviceSelectorType(null)}
             />
         </div>
     )

@@ -3,21 +3,28 @@ import { useRef, useState, useCallback } from 'react'
 export default function useCamera() {
     const [active, setActive] = useState(false)
     const [stream, setStream] = useState(null)
-    const videoRef = useRef(null)
+    const [facingMode, setFacingMode] = useState('user')
 
-    const startCamera = useCallback(async () => {
+    const startCamera = useCallback(async (deviceId) => {
         try {
-            const mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: { width: 640, height: 480, facingMode: 'user' },
-            })
+            const constraints = { video: { width: 640, height: 480 } }
+
+            if (deviceId) {
+                constraints.video.deviceId = { exact: deviceId }
+            } else {
+                constraints.video.facingMode = facingMode
+            }
+
+            const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
             setStream(mediaStream)
             setActive(true)
+            navigator.vibrate?.(10)
             return mediaStream
         } catch (err) {
             console.error('Camera access error:', err)
             return null
         }
-    }, [])
+    }, [facingMode])
 
     const stopCamera = useCallback(() => {
         if (stream) {
@@ -27,6 +34,33 @@ export default function useCamera() {
         setActive(false)
     }, [stream])
 
+    const switchCamera = useCallback(async (deviceId) => {
+        // Stop current stream first
+        if (stream) {
+            stream.getTracks().forEach(t => t.stop())
+        }
+
+        if (deviceId) {
+            return startCamera(deviceId)
+        }
+
+        // Toggle front/back
+        const newMode = facingMode === 'user' ? 'environment' : 'user'
+        setFacingMode(newMode)
+        try {
+            const mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 640, height: 480, facingMode: newMode },
+            })
+            setStream(mediaStream)
+            setActive(true)
+            navigator.vibrate?.(10)
+            return mediaStream
+        } catch (err) {
+            console.error('Camera switch error:', err)
+            return null
+        }
+    }, [stream, facingMode, startCamera])
+
     const startScreenShare = useCallback(async () => {
         try {
             const mediaStream = await navigator.mediaDevices.getDisplayMedia({
@@ -35,7 +69,6 @@ export default function useCamera() {
             setStream(mediaStream)
             setActive(true)
 
-            // Handle user stopping screen share via browser UI
             mediaStream.getVideoTracks()[0].onended = () => {
                 setStream(null)
                 setActive(false)
@@ -74,8 +107,10 @@ export default function useCamera() {
     return {
         active,
         stream,
+        facingMode,
         startCamera,
         stopCamera,
+        switchCamera,
         startScreenShare,
         captureFrame,
     }
